@@ -1,0 +1,30 @@
+{
+  "name": "vector-racer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "lint": "eslint .",
+    "supabase:link": "npx --yes supabase link --project-ref nodldlnicjzuhppluaih",
+    "supabase:push": "npx --yes supabase db push",
+    "supabase:status": "npx --yes supabase status",
+    "course:example": "node scripts/generate-example-course.mjs"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.45.4",
+    "lucide-react": "^0.468.0",
+    "next": "^16.2.9",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.6",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "^16.2.9",
+    "typescript": "^5.6.3"
+  }
+}
