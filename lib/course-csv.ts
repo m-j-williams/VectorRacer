@@ -32,6 +32,8 @@ export function parseCourseCsv(csv: string): TrackConfig {
   if (lines.length < 2) throw new Error('The CSV must include a header and at least one point.');
 
   const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase());
+  if (!headers.includes('x') || !headers.includes('y')) return parseGridCourseCsv(lines);
+
   const required = ['x', 'y', 'start', 'finish'];
   for (const header of required) {
     if (!headers.includes(header)) throw new Error(`Missing required column: ${header}`);
@@ -114,5 +116,64 @@ export function parseCourseCsv(csv: string): TrackConfig {
   };
 
   if (!validateTrackConfig(track)) throw new Error('The course data is invalid.');
+  return track;
+}
+
+function parseGridCourseCsv(lines: string[]): TrackConfig {
+  const grid = lines.map(parseCsvLine);
+  const rows = grid.length;
+  const points: Point[] = [];
+  const starts: Point[] = [];
+  const hills: { x: number; y: number; push: { x: number; y: number } }[] = [];
+
+  grid.forEach((row, rowIndex) => {
+    row.forEach((rawCell, columnIndex) => {
+      const cell = rawCell.toLowerCase().replace(/\s+/g, '');
+      if (!cell) return;
+      if (!/^[osurld]+$/.test(cell)) {
+        throw new Error(`Grid cell ${columnIndex + 1},${rowIndex + 1} uses an unknown label: ${rawCell}`);
+      }
+
+      const point = { x: columnIndex, y: rows - 1 - rowIndex };
+      points.push(point);
+      if (cell.includes('s')) starts.push(point);
+
+      const push = {
+        x: [...cell].filter((char) => char === 'r').length - [...cell].filter((char) => char === 'l').length,
+        y: [...cell].filter((char) => char === 'u').length - [...cell].filter((char) => char === 'd').length
+      };
+      if (Math.abs(push.x) > 3 || Math.abs(push.y) > 3) {
+        throw new Error(`Grid cell ${columnIndex + 1},${rowIndex + 1} has too much hill push.`);
+      }
+      if (push.x !== 0 || push.y !== 0) hills.push({ ...point, push });
+    });
+  });
+
+  if (points.length === 0) throw new Error('Mark at least one grid cell with o, s, u, r, l, or d.');
+  if (starts.length < 2) throw new Error('Mark at least two grid cells with s for the start/finish line.');
+
+  const sameX = starts.every((point) => point.x === starts[0].x);
+  const sameY = starts.every((point) => point.y === starts[0].y);
+  if (!sameX && !sameY) throw new Error('The s cells must form a horizontal or vertical start/finish line.');
+
+  const sortedStarts = starts.slice().sort((a, b) => (sameX ? a.y - b.y : a.x - b.x));
+  const start = sortedStarts[Math.floor(sortedStarts.length / 2)];
+  const finish = [sortedStarts[0], sortedStarts[sortedStarts.length - 1]] as [Point, Point];
+  const xValues = points.map((point) => point.x);
+  const yValues = points.map((point) => point.y);
+  const track: TrackConfig = {
+    bounds: {
+      minX: Math.min(...xValues),
+      maxX: Math.max(...xValues),
+      minY: Math.min(...yValues),
+      maxY: Math.max(...yValues)
+    },
+    points,
+    start,
+    finish,
+    hills
+  };
+
+  if (!validateTrackConfig(track)) throw new Error('The grid course data is invalid.');
   return track;
 }

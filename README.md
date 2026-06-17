@@ -25,24 +25,20 @@ npm run dev
 
 ## Course CSV
 
-Course files use these columns:
+Course files can be uploaded as a spreadsheet-style grid. Leave out-of-bounds cells blank and label each in-bounds grid point with one of these values:
 
 ```csv
-x,y,start,finish,hill_x,hill_y
--9,-4,0,0,0,0
-9,0,1,0,0,0
-6,0,0,1,0,0
-9,0,0,1,0,0
--3,5,0,0,1,0
+,,o,o,o,o,s,o,o
+,o,o,o,o,o,s,o,o
+o,o,o,,,,s,o,o
+u,u,o,,,,o,r,r
 ```
 
-- `x` and `y` are integer lattice coordinates.
-- Every listed coordinate is an in-bounds course point; omitted coordinates are out of bounds.
-- Older files with an `in` column remain supported.
-- Exactly one in-bounds row must have `start=1`.
-- Exactly two in-bounds rows must have `finish=1`; those points are the endpoints of an invisible finish gate.
-- The start may lie on the finish gate. In that case, endpoint order defines the finishing direction: crossing toward the left side of the directed line counts.
-- Optional `hill_x` and `hill_y` values from `-3` through `3` define an automatic acceleration applied when a racer starts a turn on that point. For example, `1,0` pushes right, `-1,1` pushes left and up, and `0,3` applies a three-unit upward push. Omit both columns for courses without hills.
+- `o` marks an ordinary in-bounds point.
+- `s` marks the start/finish line. The `s` cells must form one horizontal or vertical line; the middle `s` is the start point and the endpoints are the finish gate.
+- `u`, `r`, `l`, and `d` mark hill points that push up, right, left, or down. Repeating a letter increases the push, up to 3 units.
+- Empty cells are out of bounds.
+- The older coordinate-column format with `x,y,start,finish,hill_x,hill_y` remains supported.
 - A lap finishes when a racer crosses the gate toward the side containing the start point.
 
 The board infers its coordinate range from the listed track points. In-bounds points are rendered using the diamond and center-fill construction.
