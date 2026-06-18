@@ -7,9 +7,10 @@ type LatticeRegionProps = {
   points: Point[];
   fill: string;
   mapPoint: (point: Point) => Point;
+  opacity?: number;
 };
 
-export function LatticeRegion({ points, fill, mapPoint }: LatticeRegionProps) {
+export function LatticeRegion({ points, fill, mapPoint, opacity }: LatticeRegionProps) {
   const fillPolygons = useMemo(() => {
     if (points.length === 0) return [];
     const selected = new Set(points.map(pointKey));
@@ -33,7 +34,7 @@ export function LatticeRegion({ points, fill, mapPoint }: LatticeRegionProps) {
       .join(' ');
 
   return (
-    <g>
+    <g opacity={opacity}>
       {points.map((point) => (
         <polygon
           key={`diamond:${pointKey(point)}`}

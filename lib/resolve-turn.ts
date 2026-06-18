@@ -1,6 +1,8 @@
 import {
   applyAcceleration,
+  crossesCheckpoint,
   crossesFinish,
+  finishFraction,
   firstTrackExit,
   hillPushAt,
   nearestTrackPoint,
@@ -53,7 +55,7 @@ export async function resolveTurnByCode(code: string) {
   const [{ data: participants }, { data: selections }] = await Promise.all([
     admin
       .from('participants')
-      .select('id,display_name,color,position_x,position_y,velocity_x,velocity_y,turn_count,recovery_turns_remaining,status')
+      .select('id,display_name,color,position_x,position_y,velocity_x,velocity_y,turn_count,recovery_turns_remaining,checkpoint_crossed,finish_turns,status')
       .eq('race_id', race.id)
       .eq('status', 'racing'),
     admin
@@ -129,6 +131,8 @@ export async function resolveTurnByCode(code: string) {
           velocity_y: 0,
           turn_count: participant.turn_count + 1,
           recovery_turns_remaining: participant.recovery_turns_remaining - 1,
+          checkpoint_crossed: participant.checkpoint_crossed,
+          finish_turns: participant.finish_turns,
           finished_at: null
         });
         continue;
@@ -147,8 +151,14 @@ export async function resolveTurnByCode(code: string) {
         acceleration
       );
       const valid = segmentStaysOnTrack(race.track_config, from, result.position);
+      const checkpointCrossed =
+        participant.checkpoint_crossed || (valid && crossesCheckpoint(race.track_config, from, result.position));
       const didFinish =
-        valid && crossesFinish(race.track_config, from, result.position, participant.turn_count + 1);
+        valid && checkpointCrossed && crossesFinish(race.track_config, from, result.position, participant.turn_count + 1);
+      const finishSegmentFraction = didFinish
+        ? finishFraction(race.track_config, from, result.position, participant.turn_count + 1)
+        : null;
+      const finishTurns = finishSegmentFraction === null ? null : participant.turn_count + finishSegmentFraction;
       const exitPoint = valid ? null : firstTrackExit(race.track_config, from, result.position);
       const resetPoint = exitPoint ? nearestTrackPoint(race.track_config, exitPoint) : result.position;
       const recoveryTurns = valid ? 0 : recoveryTurnsForVelocity(result.velocity);
@@ -189,6 +199,8 @@ export async function resolveTurnByCode(code: string) {
         velocity_y: valid ? result.velocity.y : 0,
         turn_count: participant.turn_count + 1,
         recovery_turns_remaining: recoveryTurns,
+        checkpoint_crossed: checkpointCrossed,
+        finish_turns: finishTurns,
         status: nextStatus,
         finished_at: didFinish ? new Date().toISOString() : null
       });

@@ -92,7 +92,25 @@ export function TrackBoard({
         <rect width={geometry.width} height={geometry.height} fill="#ffffff" />
 
         <LatticeRegion points={track.points} fill="#d5d8dc" mapPoint={geometry.map} />
-        <LatticeRegion points={finishRegionPoints} fill="#79bdb7" mapPoint={geometry.map} />
+        {(track.regions || []).map((region) => (
+          <LatticeRegion
+            fill={region.color}
+            key={region.id}
+            mapPoint={geometry.map}
+            opacity={0.48}
+            points={region.points}
+          />
+        ))}
+        {(track.obstacles || []).map((obstacle) => (
+          <LatticeRegion
+            fill={obstacle.color}
+            key={`obstacle:${obstacle.id}`}
+            mapPoint={geometry.map}
+            opacity={0.68}
+            points={obstacle.points}
+          />
+        ))}
+        <LatticeRegion points={finishRegionPoints} fill="#fde68a" mapPoint={geometry.map} />
         <HillOverlay hills={track.hills || []} mapPoint={geometry.map} />
 
         {geometry.lattice.map((point) => {

@@ -9,6 +9,11 @@ import { readJsonResponse } from '@/lib/http';
 import { getInstructorKey } from '@/lib/instructor-key';
 import type { RaceState } from '@/lib/game';
 
+function formatFinishTurns(finishTurns: number | null) {
+  if (finishTurns === null) return '';
+  return `${finishTurns.toFixed(2)} turns`;
+}
+
 export function InstructorRaceClient({ initialRace }: { initialRace: RaceState }) {
   const [race, setRace] = useState(initialRace);
   const [message, setMessage] = useState('');
@@ -196,23 +201,29 @@ export function InstructorRaceClient({ initialRace }: { initialRace: RaceState }
           </section>
           <section className="band stack">
             <h2>Leaderboard</h2>
-            <ul className="leaderboard">
+            <ul className="leaderboard ranking-list">
               {race.participants
                 .slice()
                 .sort((a, b) => {
                   if (a.status === 'finished' && b.status !== 'finished') return -1;
                   if (b.status === 'finished' && a.status !== 'finished') return 1;
+                  if (a.status === 'finished' && b.status === 'finished') {
+                    return (a.finish_turns ?? Number.POSITIVE_INFINITY) - (b.finish_turns ?? Number.POSITIVE_INFINITY);
+                  }
                   return b.turn_count - a.turn_count;
                 })
-                .map((participant) => (
+                .map((participant, index) => (
                   <li key={participant.id}>
-                    <span className="dot" style={{ background: participant.color }} />
+                    <span className="rank">{participant.status === 'finished' ? index + 1 : '-'}</span>
                     <span>{participant.display_name}</span>
                     <span className="muted">
-                      {participant.recovery_turns_remaining > 0
-                        ? `recovering ${participant.recovery_turns_remaining}`
-                        : `v=(${participant.velocity_x}, ${participant.velocity_y})`}
+                      {participant.status === 'finished'
+                        ? formatFinishTurns(participant.finish_turns)
+                        : participant.recovery_turns_remaining > 0
+                          ? `recovering ${participant.recovery_turns_remaining}`
+                          : `v=(${participant.velocity_x}, ${participant.velocity_y})`}
                     </span>
+                    <span className="dot" style={{ background: participant.color }} />
                   </li>
                 ))}
             </ul>

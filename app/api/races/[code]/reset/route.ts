@@ -42,6 +42,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
         velocity_y: 0,
         turn_count: 0,
         recovery_turns_remaining: 0,
+        checkpoint_crossed: false,
+        finish_turns: null,
         status: 'racing',
         finished_at: null
       })

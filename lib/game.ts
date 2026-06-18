@@ -1,6 +1,11 @@
 export type Point = { x: number; y: number };
 export type Velocity = { x: number; y: number };
-export type HillPoint = Point & { push: Velocity };
+export type HillPoint = Point & { push: Velocity; color?: string };
+export type TrackRegion = {
+  id: string;
+  color: string;
+  points: Point[];
+};
 
 export type TrackConfig = {
   bounds: {
@@ -12,7 +17,10 @@ export type TrackConfig = {
   points: Point[];
   start: Point;
   finish: [Point, Point];
+  checkpoint?: [Point, Point];
   hills?: HillPoint[];
+  regions?: TrackRegion[];
+  obstacles?: TrackRegion[];
 };
 
 export type RaceState = {
@@ -52,6 +60,8 @@ export type ParticipantState = {
   velocity_y: number;
   turn_count: number;
   recovery_turns_remaining: number;
+  checkpoint_crossed: boolean;
+  finish_turns: number | null;
   status: 'racing' | 'crashed' | 'finished';
 };
 
@@ -125,7 +135,36 @@ export function validateTrackConfig(value: unknown): value is TrackConfig {
           isFiniteInteger(hill?.push?.y) &&
           Math.abs(hill.push.x) <= 3 &&
           Math.abs(hill.push.y) <= 3 &&
-          (hill.push.x !== 0 || hill.push.y !== 0)
+          (hill.push.x !== 0 || hill.push.y !== 0) &&
+          (hill.color === undefined || /^#[0-9a-f]{6}$/i.test(hill.color))
+      ))
+  ) {
+    return false;
+  }
+  if (
+    track.regions !== undefined &&
+    (!Array.isArray(track.regions) ||
+      !track.regions.every(
+        (region) =>
+          typeof region?.id === 'string' &&
+          /^#[0-9a-f]{6}$/i.test(region?.color || '') &&
+          Array.isArray(region?.points) &&
+          region.points.length > 0 &&
+          region.points.every((point) => isFiniteInteger(point?.x) && isFiniteInteger(point?.y))
+      ))
+  ) {
+    return false;
+  }
+  if (
+    track.obstacles !== undefined &&
+    (!Array.isArray(track.obstacles) ||
+      !track.obstacles.every(
+        (obstacle) =>
+          typeof obstacle?.id === 'string' &&
+          /^#[0-9a-f]{6}$/i.test(obstacle?.color || '') &&
+          Array.isArray(obstacle?.points) &&
+          obstacle.points.length > 0 &&
+          obstacle.points.every((point) => isFiniteInteger(point?.x) && isFiniteInteger(point?.y))
       ))
   ) {
     return false;
@@ -137,12 +176,23 @@ export function validateTrackConfig(value: unknown): value is TrackConfig {
   ) {
     return false;
   }
+  if (
+    track.checkpoint !== undefined &&
+    (!Array.isArray(track.checkpoint) ||
+      track.checkpoint.length !== 2 ||
+      !track.checkpoint.every((point) => isFiniteInteger(point?.x) && isFiniteInteger(point?.y)))
+  ) {
+    return false;
+  }
 
   const selected = new Set(track.points.map(pointKey));
   return (
     selected.has(pointKey(track.start)) &&
     track.finish.every((point) => selected.has(pointKey(point))) &&
-    (track.hills || []).every((hill) => selected.has(pointKey(hill)))
+    (!track.checkpoint || track.checkpoint.every((point) => selected.has(pointKey(point)))) &&
+    (track.hills || []).every((hill) => selected.has(pointKey(hill))) &&
+    (track.regions || []).every((region) => region.points.every((point) => selected.has(pointKey(point)))) &&
+    (track.obstacles || []).every((obstacle) => obstacle.points.every((point) => selected.has(pointKey(point))))
   );
 }
 
@@ -187,8 +237,8 @@ function pointInPolygon(point: Point, polygon: Point[]) {
   return inside;
 }
 
-export function isPointOnTrack(track: TrackConfig, point: Point) {
-  const selected = new Set(track.points.map(pointKey));
+function isPointInLatticeRegion(points: Point[], point: Point) {
+  const selected = new Set(points.map(pointKey));
   const nearestX = Math.round(point.x);
   const nearestY = Math.round(point.y);
 
@@ -209,6 +259,13 @@ export function isPointOnTrack(track: TrackConfig, point: Point) {
     }
   }
   return false;
+}
+
+export function isPointOnTrack(track: TrackConfig, point: Point) {
+  return (
+    isPointInLatticeRegion(track.points, point) &&
+    !(track.obstacles || []).some((obstacle) => isPointInLatticeRegion(obstacle.points, point))
+  );
 }
 
 export function segmentStaysOnTrack(track: TrackConfig, from: Point, to: Point) {
@@ -301,8 +358,36 @@ export function crossesFinish(track: TrackConfig, from: Point, to: Point, turnCo
   const startSide = Math.sign(sideOfLine(finishA, finishB, track.start));
   const fromSide = Math.sign(sideOfLine(finishA, finishB, from));
   const toSide = Math.sign(sideOfLine(finishA, finishB, to));
-  const finishSide = startSide || 1;
-  return fromSide === -finishSide && (toSide === finishSide || toSide === 0);
+  if (startSide === 0) return fromSide !== 0 && toSide !== fromSide;
+  return fromSide === startSide && (toSide === -startSide || toSide === 0);
+}
+
+export function finishFraction(track: TrackConfig, from: Point, to: Point, turnCount: number) {
+  if (!crossesFinish(track, from, to, turnCount)) return null;
+  const [finishA, finishB] = track.finish;
+  const fromValue = sideOfLine(finishA, finishB, from);
+  const toValue = sideOfLine(finishA, finishB, to);
+  const denominator = fromValue - toValue;
+  if (denominator === 0) return 1;
+  return Math.max(0, Math.min(1, fromValue / denominator));
+}
+
+export function crossesCheckpoint(track: TrackConfig, from: Point, to: Point) {
+  if (!track.checkpoint) return true;
+  const checkpointRegion = latticeSegmentPoints(track.checkpoint[0], track.checkpoint[1]);
+  const steps = Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y), 1) * 48;
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    if (
+      isPointInLatticeRegion(checkpointRegion, {
+        x: from.x + (to.x - from.x) * t,
+        y: from.y + (to.y - from.y) * t
+      })
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function getPossibleMoves(position: Point, velocity: Velocity, baseAcceleration: Velocity = { x: 0, y: 0 }) {

@@ -17,6 +17,7 @@ const arrowSpacing = 0.1;
 function Arrowheads({ hill, mapPoint }: { hill: HillPoint; mapPoint: (point: Point) => Point }) {
   const center = mapPoint(hill);
   const arrows: ReactNode[] = [];
+  const stroke = hill.color || '#b91c1c';
 
   const addArrows = (direction: 'up' | 'down' | 'left' | 'right', count: number) => {
     for (let index = 0; index < count; index += 1) {
@@ -49,7 +50,7 @@ function Arrowheads({ hill, mapPoint }: { hill: HillPoint; mapPoint: (point: Poi
           fill="none"
           key={`${direction}:${index}`}
           points={points}
-          stroke="#b91c1c"
+          stroke={stroke}
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth="0.055"
@@ -67,9 +68,17 @@ function Arrowheads({ hill, mapPoint }: { hill: HillPoint; mapPoint: (point: Poi
 
 export function HillOverlay({ hills, mapPoint }: HillOverlayProps) {
   if (hills.length === 0) return null;
+  const hillGroups = new Map<string, HillPoint[]>();
+  for (const hill of hills) {
+    const color = hill.color || '#ef4444';
+    hillGroups.set(color, [...(hillGroups.get(color) || []), hill]);
+  }
+
   return (
     <g>
-      <LatticeRegion points={hills} fill="rgba(239, 68, 68, 0.2)" mapPoint={mapPoint} />
+      {[...hillGroups.entries()].map(([color, group]) => (
+        <LatticeRegion key={color} points={group} fill={color} mapPoint={mapPoint} opacity={0.24} />
+      ))}
       {hills.map((hill) => (
         <Arrowheads hill={hill} key={`${hill.x},${hill.y}`} mapPoint={mapPoint} />
       ))}

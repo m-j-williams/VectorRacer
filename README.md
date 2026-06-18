@@ -28,18 +28,22 @@ npm run dev
 Course files can be uploaded as a spreadsheet-style grid. Leave out-of-bounds cells blank and label each in-bounds grid point with one of these values:
 
 ```csv
-,,o,o,o,o,s,o,o
-,o,o,o,o,o,s,o,o
-o,o,o,,,,s,o,o
+,,o,o,f,o,o
+,o,o,o,f,o,o
+o,o,o,f,s{yellow},o{yellow}
 u,u,o,,,,o,r,r
 ```
 
 - `o` marks an ordinary in-bounds point.
-- `s` marks the start/finish line. The `s` cells must form one horizontal or vertical line; the middle `s` is the start point and the endpoints are the finish gate.
+- `f` marks the finish line. The `f` cells must form one horizontal or vertical line; the endpoints are the finish gate.
+- `s` marks the single start point, usually one grid point before the finish line.
 - `u`, `r`, `l`, and `d` mark hill points that push up, right, left, or down. Repeating a letter increases the push, up to 3 units.
+- `c` marks an invisible checkpoint line. The `c` cells must form one horizontal or vertical line. A racer must cross the checkpoint region before the finish line counts; they do not need to land exactly on a `c` point.
+- `x` marks an obstacle point. Obstacles are drawn on the course, but movement through the obstacle region counts as leaving the track.
+- `{color}` adds a translucent colored region overlay to that point. Supported names are `blue`, `cyan`, `green`, `orange`, `pink`, `purple`, `red`, and `yellow`; hex colors like `{#fde68a}` also work.
 - Empty cells are out of bounds.
-- The older coordinate-column format with `x,y,start,finish,hill_x,hill_y` remains supported.
-- A lap finishes when a racer crosses the gate toward the side containing the start point.
+- The older coordinate-column format with `x,y,start,finish,checkpoint,obstacle,hill_x,hill_y,region_color,obstacle_color` remains supported.
+- A lap finishes when a racer has crossed the checkpoint, then crosses the finish gate toward the side containing the start point.
 
 The board infers its coordinate range from the listed track points. In-bounds points are rendered using the diamond and center-fill construction.
 

@@ -49,6 +49,8 @@ export async function getRaceStateByCode(code: string): Promise<RaceState | null
         velocity_y,
         turn_count,
         recovery_turns_remaining,
+        checkpoint_crossed,
+        finish_turns,
         status,
         created_at
       ),

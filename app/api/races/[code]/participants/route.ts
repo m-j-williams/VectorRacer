@@ -31,7 +31,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
       position_x: race.track_config.start.x,
       position_y: race.track_config.start.y,
       velocity_x: 0,
-      velocity_y: 0
+      velocity_y: 0,
+      checkpoint_crossed: false,
+      finish_turns: null
     })
     .select()
     .single();
