@@ -22,6 +22,7 @@ type TrackBoardProps = {
   participants: ParticipantState[];
   moves?: MoveState[];
   activeParticipantId?: string;
+  showCurrentVelocity?: boolean;
   showMoveOptions?: boolean;
   previewAcceleration?: Velocity;
 };
@@ -31,12 +32,21 @@ export function TrackBoard({
   participants,
   moves = [],
   activeParticipantId,
+  showCurrentVelocity = false,
   showMoveOptions = false,
   previewAcceleration
 }: TrackBoardProps) {
   const active = participants.find((participant) => participant.id === activeParticipantId);
   const activePosition = active ? { x: active.position_x, y: active.position_y } : null;
   const activeHillPush = activePosition ? hillPushAt(track, activePosition) : { x: 0, y: 0 };
+  const currentVelocityMove =
+    active && showCurrentVelocity
+      ? applyAcceleration(
+          activePosition!,
+          { x: active.velocity_x, y: active.velocity_y },
+          activeHillPush
+        )
+      : null;
   const possibleMoves =
     active && showMoveOptions
       ? getPossibleMoves(
@@ -147,6 +157,46 @@ export function TrackBoard({
             />
           );
         })}
+
+        {moves.map((move) => {
+          if (!move.valid) return null;
+          const participant = participants.find((item) => item.id === move.participant_id);
+          if (!participant) return null;
+          const stop = geometry.map({ x: move.to_x, y: move.to_y });
+          return (
+            <circle
+              key={`stop:${move.id}`}
+              cx={stop.x}
+              cy={stop.y}
+              r="0.15"
+              fill={participant.color}
+              stroke="white"
+              strokeWidth="0.04"
+            />
+          );
+        })}
+
+        {active && currentVelocityMove ? (
+          <g opacity="0.62">
+            <line
+              x1={geometry.map(activePosition!).x}
+              y1={geometry.map(activePosition!).y}
+              x2={geometry.map(currentVelocityMove.position).x}
+              y2={geometry.map(currentVelocityMove.position).y}
+              stroke="#334155"
+              strokeLinecap="round"
+              strokeWidth="0.12"
+            />
+            <circle
+              cx={geometry.map(currentVelocityMove.position).x}
+              cy={geometry.map(currentVelocityMove.position).y}
+              r="0.18"
+              fill="white"
+              stroke="#334155"
+              strokeWidth="0.08"
+            />
+          </g>
+        ) : null}
 
         {possibleMoves.map((move) => {
           const mapped = geometry.map(move.position);

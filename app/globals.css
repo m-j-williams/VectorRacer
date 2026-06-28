@@ -87,6 +87,21 @@ input {
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
 }
 
+.race-layout {
+  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.7fr);
+}
+
+.race-layout > * {
+  min-width: 0;
+}
+
+.race-layout .track-wrap {
+  aspect-ratio: 16 / 10;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
 .stack {
   display: grid;
   gap: 16px;
@@ -172,6 +187,25 @@ input {
 
 .timer-control .input {
   width: 86px;
+}
+
+.visual-aid-list {
+  display: grid;
+  gap: 8px;
+}
+
+.toggle-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-height: 36px;
+}
+
+.toggle-row input {
+  accent-color: var(--accent);
+  height: 18px;
+  margin: 0;
+  width: 18px;
 }
 
 .label {

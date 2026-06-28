@@ -36,6 +36,9 @@ export type RaceState = {
   paused_turn_seconds: number | null;
   started_at: string | null;
   turn_resolving: boolean;
+  show_current_velocity: boolean;
+  show_potential_endpoints: boolean;
+  show_chosen_velocity: boolean;
   submitted_participant_ids: string[];
 };
 

@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase-admin';
 
-type ControlAction = 'start' | 'pause' | 'set-duration';
+type ControlAction = 'start' | 'pause' | 'set-duration' | 'set-visibility';
+
+const visibilityFields = [
+  'show_current_velocity',
+  'show_potential_endpoints',
+  'show_chosen_velocity'
+] as const;
 
 export async function POST(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
@@ -68,6 +74,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
           ? { turn_deadline: new Date(now + duration * 1000).toISOString() }
           : { paused_turn_seconds: duration })
       };
+    } else if (action === 'set-visibility') {
+      const field = body?.field as (typeof visibilityFields)[number];
+      if (!visibilityFields.includes(field) || typeof body?.visible !== 'boolean') {
+        return NextResponse.json({ error: 'Invalid visual aid setting.' }, { status: 400 });
+      }
+      updates = { [field]: body.visible };
     } else {
       return NextResponse.json({ error: 'Unknown race control.' }, { status: 400 });
     }

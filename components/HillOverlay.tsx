@@ -17,7 +17,6 @@ const arrowSpacing = 0.1;
 function Arrowheads({ hill, mapPoint }: { hill: HillPoint; mapPoint: (point: Point) => Point }) {
   const center = mapPoint(hill);
   const arrows: ReactNode[] = [];
-  const stroke = hill.color || '#b91c1c';
 
   const addArrows = (direction: 'up' | 'down' | 'left' | 'right', count: number) => {
     for (let index = 0; index < count; index += 1) {
@@ -50,10 +49,10 @@ function Arrowheads({ hill, mapPoint }: { hill: HillPoint; mapPoint: (point: Poi
           fill="none"
           key={`${direction}:${index}`}
           points={points}
-          stroke={stroke}
+          stroke="#172033"
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth="0.055"
+          strokeWidth="0.075"
         />
       );
     }

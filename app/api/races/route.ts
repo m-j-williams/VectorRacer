@@ -32,7 +32,10 @@ export async function POST(request: Request) {
           turn_deadline: null,
           paused_turn_seconds: 20,
           started_at: null,
-          turn_resolving: false
+          turn_resolving: false,
+          show_current_velocity: true,
+          show_potential_endpoints: true,
+          show_chosen_velocity: true
         })
         .select('code')
         .single();

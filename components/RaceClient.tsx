@@ -25,6 +25,11 @@ const accelButtons = [
   { axis: 'y', value: -1, icon: ChevronDown, doubleIcon: ChevronsDown, label: 'Down', className: 'accel-down' }
 ] as const;
 
+function formatFinishTurns(finishTurns: number | null) {
+  if (finishTurns === null) return '';
+  return `${finishTurns.toFixed(2)} turns`;
+}
+
 export function RaceClient({ initialRace }: { initialRace: RaceState }) {
   const [race, setRace] = useState(initialRace);
   const [name, setName] = useState('');
@@ -203,21 +208,30 @@ export function RaceClient({ initialRace }: { initialRace: RaceState }) {
   }
 
   return (
-    <div className="grid-2">
+    <div className="grid-2 race-layout">
       <section className="stack">
         <TrackBoard
           track={race.track_config}
           participants={race.participants}
           moves={race.moves}
           activeParticipantId={participantId || undefined}
+          showCurrentVelocity={
+            race.show_current_velocity &&
+            race.status === 'running' &&
+            Boolean(participant) &&
+            participant?.recovery_turns_remaining === 0
+          }
           showMoveOptions={
+            race.show_potential_endpoints &&
             race.status === 'running' &&
             Boolean(participant) &&
             participant?.recovery_turns_remaining === 0 &&
             !hasSubmitted
           }
           previewAcceleration={
-            race.status === 'running' && participant?.recovery_turns_remaining === 0
+            race.show_chosen_velocity &&
+            race.status === 'running' &&
+            participant?.recovery_turns_remaining === 0
               ? draftAcceleration || undefined
               : undefined
           }
@@ -369,19 +383,32 @@ export function RaceClient({ initialRace }: { initialRace: RaceState }) {
         </section>
 
         <section className="band stack">
-          <h2>Drivers</h2>
-          <ul className="leaderboard">
-            {race.participants.map((item) => (
-              <li key={item.id}>
-                <span className="dot" style={{ background: item.color }} />
-                <span>{item.display_name}</span>
-                <span className="muted">
-                  {item.recovery_turns_remaining > 0
-                    ? `recovering (${item.recovery_turns_remaining})`
-                    : item.status}
-                </span>
-              </li>
-            ))}
+          <h2>Standings</h2>
+          <ul className="leaderboard ranking-list">
+            {race.participants
+              .slice()
+              .sort((a, b) => {
+                if (a.status === 'finished' && b.status !== 'finished') return -1;
+                if (b.status === 'finished' && a.status !== 'finished') return 1;
+                if (a.status === 'finished' && b.status === 'finished') {
+                  return (a.finish_turns ?? Number.POSITIVE_INFINITY) - (b.finish_turns ?? Number.POSITIVE_INFINITY);
+                }
+                return b.turn_count - a.turn_count;
+              })
+              .map((item, index) => (
+                <li key={item.id}>
+                  <span className="rank">{item.status === 'finished' ? index + 1 : '-'}</span>
+                  <span>{item.display_name}</span>
+                  <span className="muted">
+                    {item.status === 'finished'
+                      ? formatFinishTurns(item.finish_turns)
+                      : item.recovery_turns_remaining > 0
+                        ? `recovering (${item.recovery_turns_remaining})`
+                        : item.status}
+                  </span>
+                  <span className="dot" style={{ background: item.color }} />
+                </li>
+              ))}
           </ul>
         </section>
       </aside>

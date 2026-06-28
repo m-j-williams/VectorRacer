@@ -9,6 +9,17 @@ import { readJsonResponse } from '@/lib/http';
 import { getInstructorKey } from '@/lib/instructor-key';
 import type { RaceState } from '@/lib/game';
 
+type VisualAidField =
+  | 'show_current_velocity'
+  | 'show_potential_endpoints'
+  | 'show_chosen_velocity';
+
+const visualAidOptions: { field: VisualAidField; label: string }[] = [
+  { field: 'show_current_velocity', label: 'Current velocity vector' },
+  { field: 'show_potential_endpoints', label: 'Potential endpoints' },
+  { field: 'show_chosen_velocity', label: 'New velocity vector' }
+];
+
 function formatFinishTurns(finishTurns: number | null) {
   if (finishTurns === null) return '';
   return `${finishTurns.toFixed(2)} turns`;
@@ -118,6 +129,30 @@ export function InstructorRaceClient({ initialRace }: { initialRace: RaceState }
     await refreshRace();
   }
 
+  async function setVisualAid(field: VisualAidField, visible: boolean) {
+    setBusy(true);
+    setMessage('');
+    const response = await fetch(`/api/races/${race.code}/control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        instructorKey: getInstructorKey(),
+        action: 'set-visibility',
+        field,
+        visible
+      })
+    });
+    const payload = await readJsonResponse(response);
+    setBusy(false);
+
+    if (!response.ok) {
+      setMessage(payload.error || 'Unable to update visual aids.');
+      return;
+    }
+    setRace((current) => ({ ...current, [field]: visible }));
+    await refreshRace();
+  }
+
   return (
     <div className="stack">
       <section className="band row" style={{ justifyContent: 'space-between' }}>
@@ -147,7 +182,7 @@ export function InstructorRaceClient({ initialRace }: { initialRace: RaceState }
         {message ? <div className="message error">{message}</div> : null}
       </section>
 
-      <div className="grid-2">
+      <div className="grid-2 race-layout">
         <section className="stack">
           <section className="band race-controls">
             <div>
@@ -177,6 +212,22 @@ export function InstructorRaceClient({ initialRace }: { initialRace: RaceState }
             <span className="muted">
               {race.status === 'running' ? 'Changing the time restarts the current countdown.' : 'Used when play resumes.'}
             </span>
+          </section>
+          <section className="band stack">
+            <span className="label">Student visual aids</span>
+            <div className="visual-aid-list">
+              {visualAidOptions.map(({ field, label }) => (
+                <label className="toggle-row" key={field}>
+                  <input
+                    checked={race[field]}
+                    disabled={busy || race.status === 'finished'}
+                    onChange={(event) => setVisualAid(field, event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
           </section>
           <TurnStatus
             turnNumber={race.turn_number}

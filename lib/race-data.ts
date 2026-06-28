@@ -18,6 +18,9 @@ type RaceRow = {
   paused_turn_seconds: number | null;
   started_at: string | null;
   turn_resolving: boolean;
+  show_current_velocity: boolean;
+  show_potential_endpoints: boolean;
+  show_chosen_velocity: boolean;
   participants: (ParticipantState & { created_at: string })[];
   moves: MoveState[];
   turn_selections: { participant_id: string; turn_number: number; submitted: boolean }[];
@@ -39,6 +42,9 @@ export async function getRaceStateByCode(code: string): Promise<RaceState | null
       paused_turn_seconds,
       started_at,
       turn_resolving,
+      show_current_velocity,
+      show_potential_endpoints,
+      show_chosen_velocity,
       participants (
         id,
         display_name,
