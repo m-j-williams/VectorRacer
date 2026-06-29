@@ -261,6 +261,86 @@ a.tool-card:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.solar-time-control {
+  display: block;
+  margin-top: 13px;
+}
+
+.solar-time-control input {
+  accent-color: #ffd45a;
+  cursor: pointer;
+  margin: 0 0 4px;
+  width: 100%;
+}
+
+.solar-time-scale {
+  color: #737f90;
+  display: block;
+  height: 13px;
+  position: relative;
+}
+
+.solar-time-scale small {
+  font-size: 0.54rem;
+  left: 50%;
+  position: absolute;
+  text-align: center;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.solar-time-scale small.edge-start {
+  text-align: left;
+  transform: none;
+}
+
+.solar-time-scale small.edge-end {
+  text-align: right;
+  transform: translateX(-100%);
+}
+
+.solar-date-time-control {
+  color: #8994a5;
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 750;
+  margin-top: 13px;
+}
+
+.solar-date-time-control span {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.solar-date-time-control input {
+  background: #111620;
+  border: 1px solid #343d4d;
+  border-radius: 6px;
+  color: #f7f8fb;
+  color-scheme: dark;
+  min-height: 38px;
+  padding: 0 9px;
+  width: 100%;
+}
+
+.solar-now-button {
+  background: transparent;
+  border: 1px solid #343d4d;
+  border-radius: 6px;
+  color: #aeb8c7;
+  cursor: pointer;
+  font-size: 0.7rem;
+  margin-top: 11px;
+  min-height: 31px;
+  padding: 0 9px;
+}
+
+.solar-now-button:disabled {
+  color: #596476;
+  cursor: default;
+  opacity: 0.65;
+}
+
 .solar-menu-heading {
   color: #7d899b;
   display: block;
@@ -303,6 +383,54 @@ a.tool-card:hover {
 .solar-toggle:has(input:disabled) {
   color: #667184;
   cursor: not-allowed;
+}
+
+.solar-overlay-heading {
+  color: #7d899b;
+  display: block;
+  font-size: 0.64rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  margin: 13px 0 3px;
+  text-transform: uppercase;
+}
+
+.solar-range-control {
+  color: #aeb7c5;
+  display: block;
+  font-size: 0.72rem;
+  margin-top: 12px;
+}
+
+.solar-range-control > span:first-child,
+.solar-range-ends {
+  display: flex;
+  justify-content: space-between;
+}
+
+.solar-range-control output {
+  color: #dce4ef;
+  font-variant-numeric: tabular-nums;
+}
+
+.solar-range-control input {
+  accent-color: #ffd45a;
+  cursor: pointer;
+  margin: 8px 0 3px;
+  width: 100%;
+}
+
+.solar-range-control.disabled {
+  color: #667184;
+}
+
+.solar-range-control.disabled input {
+  cursor: not-allowed;
+}
+
+.solar-range-ends small {
+  color: #737f90;
+  font-size: 0.62rem;
 }
 
 .solar-body-options {
@@ -490,6 +618,11 @@ a.tool-card:hover {
   stroke-width: 0.8;
 }
 
+.daylight-wedge,
+.current-sky-overlay {
+  pointer-events: none;
+}
+
 .earth-location-halo {
   fill: #ffdf55;
   fill-opacity: 0.18;
@@ -578,7 +711,11 @@ a.tool-card:hover {
 .jupiter-band {
   fill: none;
   stroke: #9f6649;
-  stroke-width: 1.5;
+}
+
+.jupiter-spot {
+  fill: #a94f36;
+  stroke: #69301f;
 }
 
 .solar-stage-footer {

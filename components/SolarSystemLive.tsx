@@ -6,6 +6,8 @@ import { Menu, X } from 'lucide-react';
 type PlanetName = 'Mercury' | 'Venus' | 'Earth' | 'Mars' | 'Jupiter' | 'Saturn';
 type BodyName = PlanetName | 'Moon';
 type Orientation = 'calendar' | 'earth-top' | 'earth-bottom' | 'location-top';
+type CenterMode = 'sun' | 'earth';
+type SkyOverlay = 'off' | 'daylight' | 'current';
 
 type OrbitalElements = {
   name: PlanetName;
@@ -23,6 +25,8 @@ type OrbitalElements = {
 type PlanetPosition = OrbitalElements & {
   angle: number;
   distance: number;
+  heliocentricX: number;
+  heliocentricY: number;
   x: number;
   y: number;
 };
@@ -30,29 +34,56 @@ type PlanetPosition = OrbitalElements & {
 type ZodiacConstellation = {
   name: string;
   month: string;
+  longitude: number;
   points: Array<[number, number]>;
   lines: number[][];
+  visiblePoints?: number[];
 };
 
 const CENTER = 320;
 const DEG = Math.PI / 180;
+const CALENDAR_ROTATION = (90 - 284.2) * DEG;
+const GEOCENTRIC_RADIUS = 270;
+const GEOCENTRIC_MAX_AU = 11;
+const GEOCENTRIC_LOG_STRENGTH = 5;
+const EARTH_CENTERED_MOON_RADIUS = 48;
+const DAYLIGHT_WEDGE_RADIUS = 375;
+const DAY_MS = 86400000;
+const YEAR_MS = 365.2425 * DAY_MS;
+const TIME_RANGE_MS = 20 * YEAR_MS;
+const DAY_SLIDER_POSITION = 0.25;
+const YEAR_SLIDER_POSITION = 2 / 3;
+const EARTH_CENTERED_PLANET_SIZES: Record<PlanetName, number> = {
+  Mercury: 2,
+  Venus: 3,
+  Earth: 18,
+  Mars: 2.5,
+  Jupiter: 4.5,
+  Saturn: 4
+};
 const BODY_NAMES: BodyName[] = ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Jupiter', 'Saturn'];
 
 type ViewSettings = {
+  centerMode: CenterMode;
+  radialSpread: number;
   orientation: Orientation;
   showLabels: boolean;
   showOrbits: boolean;
   showZodiac: boolean;
+  skyOverlay: SkyOverlay;
   visibleBodies: Record<BodyName, boolean>;
   latitude: number | null;
   longitude: number | null;
 };
 
 const DEFAULT_SETTINGS: ViewSettings = {
+  centerMode: 'sun',
+  radialSpread: 0,
   orientation: 'calendar',
   showLabels: true,
   showOrbits: true,
   showZodiac: true,
+  skyOverlay: 'daylight',
   visibleBodies: {
     Mercury: true,
     Venus: true,
@@ -72,6 +103,59 @@ function parseCoordinate(value: string | null, minimum: number, maximum: number)
   return Number.isFinite(number) && number >= minimum && number <= maximum ? number : null;
 }
 
+function parseRadialSpread(value: string | null) {
+  if (value === null) return 0;
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(1, Math.max(0, number / 100)) : 0;
+}
+
+function readSelectedTime(search: string) {
+  const value = new URLSearchParams(search).get('time');
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function writeSelectedTime(timestamp: number | null) {
+  const url = new URL(window.location.href);
+  if (timestamp === null) url.searchParams.delete('time');
+  else url.searchParams.set('time', new Date(timestamp).toISOString());
+  window.history.replaceState(window.history.state, '', url);
+}
+
+function timeSliderToOffset(value: number) {
+  const sign = Math.sign(value);
+  const position = Math.min(1, Math.abs(value));
+  if (position <= DAY_SLIDER_POSITION) {
+    return sign * DAY_MS * (position / DAY_SLIDER_POSITION);
+  }
+  if (position <= YEAR_SLIDER_POSITION) {
+    const progress =
+      (position - DAY_SLIDER_POSITION) / (YEAR_SLIDER_POSITION - DAY_SLIDER_POSITION);
+    return sign * DAY_MS * Math.pow(YEAR_MS / DAY_MS, progress);
+  }
+  const progress = (position - YEAR_SLIDER_POSITION) / (1 - YEAR_SLIDER_POSITION);
+  return sign * YEAR_MS * Math.pow(TIME_RANGE_MS / YEAR_MS, progress);
+}
+
+function timeOffsetToSlider(offset: number) {
+  const sign = Math.sign(offset);
+  const duration = Math.min(TIME_RANGE_MS, Math.abs(offset));
+  if (duration <= DAY_MS) return sign * (duration / DAY_MS) * DAY_SLIDER_POSITION;
+  if (duration <= YEAR_MS) {
+    const progress = Math.log(duration / DAY_MS) / Math.log(YEAR_MS / DAY_MS);
+    return sign *
+      (DAY_SLIDER_POSITION + progress * (YEAR_SLIDER_POSITION - DAY_SLIDER_POSITION));
+  }
+  const progress = Math.log(duration / YEAR_MS) / Math.log(TIME_RANGE_MS / YEAR_MS);
+  return sign * (YEAR_SLIDER_POSITION + progress * (1 - YEAR_SLIDER_POSITION));
+}
+
+function localDateTimeValue(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function readSettings(search: string): ViewSettings {
   const params = new URLSearchParams(search);
   const latitude = parseCoordinate(params.get('lat'), -90, 90);
@@ -87,12 +171,22 @@ function readSettings(search: string): ViewSettings {
   const visibleBodies = Object.fromEntries(
     BODY_NAMES.map((name) => [name, !hiddenBodies.has(name.toLowerCase())])
   ) as Record<BodyName, boolean>;
+  const skyParam = params.get('sky');
+  const skyOverlay: SkyOverlay =
+    skyParam === 'current' || skyParam === 'off'
+      ? skyParam
+      : params.get('daylight') === '0'
+        ? 'off'
+        : 'daylight';
 
   return {
+    centerMode: params.get('center') === 'earth' ? 'earth' : 'sun',
+    radialSpread: parseRadialSpread(params.get('spread')),
     orientation,
     showLabels: params.get('labels') !== '0',
     showOrbits: params.get('orbits') !== '0',
     showZodiac: params.get('zodiac') !== '0',
+    skyOverlay,
     visibleBodies,
     latitude,
     longitude
@@ -101,6 +195,13 @@ function readSettings(search: string): ViewSettings {
 
 function writeSettings(settings: ViewSettings) {
   const url = new URL(window.location.href);
+
+  if (settings.centerMode === 'sun') url.searchParams.delete('center');
+  else url.searchParams.set('center', settings.centerMode);
+
+  const radialSpread = settings.radialSpread ?? 0;
+  if (radialSpread === 0) url.searchParams.delete('spread');
+  else url.searchParams.set('spread', String(Math.round(radialSpread * 100)));
 
   if (settings.orientation === 'calendar') url.searchParams.delete('orientation');
   else url.searchParams.set('orientation', settings.orientation);
@@ -113,6 +214,10 @@ function writeSettings(settings: ViewSettings) {
 
   if (settings.showZodiac) url.searchParams.delete('zodiac');
   else url.searchParams.set('zodiac', '0');
+
+  url.searchParams.delete('daylight');
+  if ((settings.skyOverlay ?? 'daylight') === 'daylight') url.searchParams.delete('sky');
+  else url.searchParams.set('sky', settings.skyOverlay ?? 'daylight');
 
   const hiddenBodies = BODY_NAMES.filter((name) => !settings.visibleBodies[name]).map((name) =>
     name.toLowerCase()
@@ -134,9 +239,11 @@ function rotationForOrientation(
   earthAngle: number,
   locationAngle: number | null
 ) {
-  if (orientation === 'earth-top') return Math.PI / 2 - earthAngle;
-  if (orientation === 'earth-bottom') return -Math.PI / 2 - earthAngle;
-  if (orientation === 'location-top' && locationAngle !== null) return Math.PI / 2 - locationAngle;
+  if (orientation === 'earth-top') return Math.PI / 2 - earthAngle - CALENDAR_ROTATION;
+  if (orientation === 'earth-bottom') return -Math.PI / 2 - earthAngle - CALENDAR_ROTATION;
+  if (orientation === 'location-top' && locationAngle !== null) {
+    return Math.PI / 2 - locationAngle - CALENDAR_ROTATION;
+  }
   return 0;
 }
 
@@ -144,7 +251,109 @@ function shortestAngleDelta(from: number, to: number) {
   return Math.atan2(Math.sin(to - from), Math.cos(to - from));
 }
 
+function rotateVector(x: number, y: number, rotation: number) {
+  return {
+    x: x * Math.cos(rotation) - y * Math.sin(rotation),
+    y: x * Math.sin(rotation) + y * Math.cos(rotation)
+  };
+}
+
+function geocentricPoint(x: number, y: number, rotation: number, radialSpread: number) {
+  const rotated = rotateVector(x, y, rotation);
+  const distance = Math.hypot(rotated.x, rotated.y);
+  if (distance === 0) return { x: CENTER, y: CENTER };
+  const logarithmicRadius =
+    GEOCENTRIC_RADIUS *
+    (Math.log1p(
+      Math.min(distance, GEOCENTRIC_MAX_AU) * GEOCENTRIC_LOG_STRENGTH
+    ) /
+      Math.log1p(GEOCENTRIC_MAX_AU * GEOCENTRIC_LOG_STRENGTH));
+  const compressedRadius =
+    logarithmicRadius + (GEOCENTRIC_RADIUS - logarithmicRadius) * radialSpread;
+
+  return {
+    x: CENTER + (rotated.x / distance) * compressedRadius,
+    y: CENTER - (rotated.y / distance) * compressedRadius
+  };
+}
+
+function mix(from: number, to: number, progress: number) {
+  return from + (to - from) * progress;
+}
+
+function mixPoint(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  progress: number
+) {
+  return { x: mix(from.x, to.x, progress), y: mix(from.y, to.y, progress) };
+}
+
+function daylightHourAngle(latitude: number, solarDeclination: number) {
+  const sunriseCosine = -Math.tan(latitude * DEG) * Math.tan(solarDeclination);
+  if (sunriseCosine >= 1) return 0;
+  if (sunriseCosine <= -1) return Math.PI;
+  return Math.acos(sunriseCosine);
+}
+
+function radialWedgePath(
+  centerX: number,
+  centerY: number,
+  radius: number,
+  angle: number,
+  halfAngle: number
+) {
+  if (halfAngle <= 0.0001) return '';
+  if (halfAngle >= Math.PI - 0.0001) {
+    return [
+      `M ${centerX + radius} ${centerY}`,
+      `A ${radius} ${radius} 0 1 0 ${centerX - radius} ${centerY}`,
+      `A ${radius} ${radius} 0 1 0 ${centerX + radius} ${centerY}`,
+      'Z'
+    ].join(' ');
+  }
+
+  const startAngle = angle - halfAngle;
+  const endAngle = angle + halfAngle;
+  const start = {
+    x: centerX + Math.cos(startAngle) * radius,
+    y: centerY - Math.sin(startAngle) * radius
+  };
+  const end = {
+    x: centerX + Math.cos(endAngle) * radius,
+    y: centerY - Math.sin(endAngle) * radius
+  };
+
+  return [
+    `M ${centerX} ${centerY}`,
+    `L ${start.x} ${start.y}`,
+    `A ${radius} ${radius} 0 ${halfAngle * 2 > Math.PI ? 1 : 0} 0 ${end.x} ${end.y}`,
+    'Z'
+  ].join(' ');
+}
+
 function projectEarthLocation(latitude: number, longitude: number, date: Date, rotation: number) {
+  const julianDate = date.getTime() / 86400000 + 2440587.5;
+  const centuries = (julianDate - 2451545) / 36525;
+  const greenwichSiderealDegrees =
+    280.46061837 +
+    360.98564736629 * (julianDate - 2451545) +
+    0.000387933 * centuries * centuries -
+    (centuries * centuries * centuries) / 38710000;
+  const latitudeRadians = latitude * DEG;
+  const localSiderealAngle = (greenwichSiderealDegrees + longitude) * DEG;
+  const polarRadius = Math.cos(latitudeRadians);
+  const polarX = polarRadius * Math.cos(localSiderealAngle);
+  const polarY = polarRadius * Math.sin(localSiderealAngle);
+
+  return {
+    x: polarX * Math.cos(rotation) - polarY * Math.sin(rotation),
+    y: polarX * Math.sin(rotation) + polarY * Math.cos(rotation),
+    nearSide: latitude >= 0
+  };
+}
+
+function projectObserverZenith(latitude: number, longitude: number, date: Date, rotation: number) {
   const julianDate = date.getTime() / 86400000 + 2440587.5;
   const centuries = (julianDate - 2451545) / 36525;
   const greenwichSiderealDegrees =
@@ -161,12 +370,9 @@ function projectEarthLocation(latitude: number, longitude: number, date: Date, r
   const eclipticX = equatorialX;
   const eclipticY = Math.cos(obliquity) * equatorialY + Math.sin(obliquity) * equatorialZ;
   const eclipticZ = -Math.sin(obliquity) * equatorialY + Math.cos(obliquity) * equatorialZ;
+  const rotated = rotateVector(eclipticX, eclipticY, rotation);
 
-  return {
-    x: eclipticX * Math.cos(rotation) - eclipticY * Math.sin(rotation),
-    y: eclipticX * Math.sin(rotation) + eclipticY * Math.cos(rotation),
-    nearSide: eclipticZ >= 0
-  };
+  return { x: rotated.x, y: rotated.y, z: eclipticZ };
 }
 
 // JPL approximate Keplerian elements and rates for 1800–2050.
@@ -245,80 +451,56 @@ const PLANETS: OrbitalElements[] = [
   }
 ];
 
-// Compact, classroom-friendly asterisms arranged as a 12-month seasonal ring.
+// Western line figures derived from d3-celestial's J2000 constellation data.
 const ZODIAC: ZodiacConstellation[] = [
-  {
-    name: 'Sagittarius',
-    month: 'DEC',
-    points: [[-17, -7], [-9, -12], [1, -8], [12, -13], [8, -3], [18, 3], [7, 5], [3, 14], [-8, 10], [-12, 1]],
-    lines: [[0, 1, 2, 4, 6, 8, 9, 0], [2, 3], [4, 5], [6, 7]]
-  },
-  {
-    name: 'Capricorn',
-    month: 'JAN',
-    points: [[-17, -8], [-7, -3], [0, 11], [7, 3], [17, -9], [4, -5]],
-    lines: [[0, 1, 2, 3, 4, 5, 0]]
-  },
-  {
-    name: 'Aquarius',
-    month: 'FEB',
-    points: [[-18, -9], [-10, -13], [-3, -7], [5, -12], [13, -6], [18, 2], [8, 5], [2, 13], [-8, 8], [-15, 14]],
-    lines: [[0, 1, 2, 3, 4, 5, 6, 7], [6, 8, 9]]
-  },
-  {
-    name: 'Pisces',
-    month: 'MAR',
-    points: [[-18, -8], [-13, -14], [-7, -9], [-10, -2], [0, 2], [10, 7], [15, 13], [19, 7], [14, 1], [8, 5]],
-    lines: [[0, 1, 2, 3, 0], [3, 4, 9], [9, 5, 6, 7, 8, 5]]
-  },
-  {
-    name: 'Aries',
-    month: 'APR',
-    points: [[-17, 9], [-8, 3], [1, -2], [9, -11], [17, -8]],
-    lines: [[0, 1, 2, 3, 4]]
-  },
-  {
-    name: 'Taurus',
-    month: 'MAY',
-    points: [[-18, -13], [-8, -5], [0, 2], [9, -5], [18, -13], [0, 13], [-9, 8], [10, 8]],
-    lines: [[0, 1, 2, 3, 4], [2, 5], [5, 6], [5, 7]]
-  },
-  {
-    name: 'Gemini',
-    month: 'JUN',
-    points: [[-10, -15], [8, -14], [-8, -4], [7, -3], [-13, 7], [12, 8], [-16, 15], [15, 16]],
-    lines: [[0, 2, 4, 6], [1, 3, 5, 7], [2, 3], [4, 5]]
-  },
-  {
-    name: 'Cancer',
-    month: 'JUL',
-    points: [[0, -16], [0, -4], [-13, 5], [-18, 14], [11, 5], [17, 14]],
-    lines: [[0, 1, 2, 3], [1, 4, 5]]
-  },
-  {
-    name: 'Leo',
-    month: 'AUG',
-    points: [[-17, 10], [-9, 3], [-13, -6], [-7, -14], [0, -7], [3, 3], [14, 8], [18, -3]],
-    lines: [[0, 1, 2, 3, 4, 5, 0], [5, 6, 7]]
-  },
-  {
-    name: 'Virgo',
-    month: 'SEP',
-    points: [[-17, -9], [-7, -5], [0, 2], [10, -8], [17, -3], [8, 6], [14, 15], [-2, 13], [-12, 8]],
-    lines: [[0, 1, 2, 3, 4], [2, 5, 6], [5, 7, 8, 1]]
-  },
-  {
-    name: 'Libra',
-    month: 'OCT',
-    points: [[-14, -10], [11, -11], [17, 5], [2, 14], [-16, 6], [0, 1]],
-    lines: [[0, 1, 2, 3, 4, 0], [0, 5, 2]]
-  },
-  {
-    name: 'Scorpius',
-    month: 'NOV',
-    points: [[-16, -12], [-10, -5], [-3, -9], [2, -2], [4, 7], [10, 13], [17, 9], [14, 2]],
-    lines: [[0, 1, 2, 3, 4, 5, 6, 7]]
-  }
+  { name: 'Sagittarius', month: 'DEC', longitude: 284.2,
+    points: [[-11.8, 10.5], [-10.2, 7.7], [-11, 2.5], [-9.2, -2.6], [-12.8, -7.6], [4.7, 19.3], [5, 14.9], [-0.4, 2.6], [-4.7, -0.8], [13, 16.4], [14.2, 8.8], [13.2, -1.6], [8.3, -3.2], [5.4, -3.6], [2.9, -2.8], [-2.3, -1.6], [-14.9, 3.2], [0.7, 0], [0.1, -6.8], [1.4, -7.6], [3.4, -10], [4.5, -11.3], [4.5, -13.4], [-1.6, -7.5], [-2.5, -5.6]],
+    lines: [[0, 1, 2, 3, 4], [5, 6, 7, 8, 3], [9, 10, 11, 12, 13, 14, 15, 8, 2, 16, 1, 7, 17, 15, 18, 19, 20, 21, 22], [18, 23, 24, 15]],
+    visiblePoints: [1, 2, 7, 8, 15, 16, 17, 18, 19, 23] },
+  { name: 'Capricorn', month: 'JAN', longitude: 312.2,
+    points: [[-11.7, -7.1], [-10.8, -4.5], [-8.7, -1], [-4, 7.6], [-2.4, 9.5], [7.1, 4.3], [12.6, -2.9], [10.7, -2.3], [5.9, -2.1], [1.4, -1.6]],
+    lines: [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0]],
+    visiblePoints: [1, 3, 4, 5, 6, 7, 9] },
+  { name: 'Aquarius', month: 'FEB', longitude: 334.6,
+    points: [[-27.4, 1.6], [-26, 1], [-14.9, -2.9], [-5.2, -9], [-0.7, -7.8], [1.4, -9.3], [3.2, -9.2], [8.2, -0.6], [15.4, 1.2], [12.9, 15], [-5, 6.6], [-2, -0.4], [0.4, -10.9], [16.8, 13.8], [22.1, 11.1]],
+    lines: [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [2, 10], [3, 11], [5, 12], [13, 8, 14]],
+    visiblePoints: [0, 2, 3, 4, 5, 7, 8, 9, 13] },
+  { name: 'Pisces', month: 'MAR', longitude: 12.6,
+    points: [[9.9, -17.5], [9.3, -23.8], [11.5, -20.6], [9.3, -13.4], [14.9, -6.9], [18.9, 0.2], [23.6, 7.6], [21.2, 7.1], [17.8, 4.5], [14.6, 3.7], [9.9, 2.1], [6.9, 1.7], [2.8, 2], [-11.2, 2.9], [-16.7, 4.3], [-20.1, 3.4], [-22.3, 4.6], [-23.2, 7], [-20.4, 9.3], [-16.1, 8.7], [-14.9, 6.8], [-26.9, 6.4]],
+    lines: [[0, 1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 14], [17, 21]],
+    visiblePoints: [0, 1, 2, 4, 6, 12, 13, 14, 17, 19] },
+  { name: 'Aries', month: 'APR', longitude: 38.2,
+    points: [[10.3, -5.2], [-1.1, -0.9], [-4.4, 2.2], [-4.7, 3.9]],
+    lines: [[0, 1, 2, 3]],
+    visiblePoints: [0, 1, 2, 3] },
+  { name: 'Taurus', month: 'MAY', longitude: 65.1,
+    points: [[21.8, -7.8], [4.6, -2.5], [2.6, -1.8], [0.1, -1.5], [1, -3.7], [2.6, -5.6], [18.7, -16.4], [-5.2, 2.1], [-14.5, 5.3], [-4.5, 9.6], [-15.2, 6.1], [-11.8, 16]],
+    lines: [[0, 1, 2, 3, 4, 5, 6], [3, 7, 8, 9], [8, 10, 11]],
+    visiblePoints: [0, 1, 2, 3, 5, 6, 7, 8, 10] },
+  { name: 'Gemini', month: 'JUN', longitude: 104.3,
+    points: [[-12.7, 0.5], [-10.6, 0.5], [-5, -2.5], [2.2, -8.4], [8.4, -10.3], [11.2, -5.8], [8.8, -4.5], [4.6, 1.1], [0.3, 2.8], [-6.7, 7.6], [-4.6, 11.6], [4, 7.4]],
+    lines: [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [7, 11]],
+    visiblePoints: [0, 1, 2, 4, 5, 7, 9, 10, 11] },
+  { name: 'Cancer', month: 'JUL', longitude: 128.1,
+    points: [[4.5, 6.9], [0.8, -0.3], [0.4, -4.1], [1.3, -12.5], [-7, 10]],
+    lines: [[0, 1, 2, 3], [1, 4]],
+    visiblePoints: [0, 1, 2, 3, 4] },
+  { name: 'Leo', month: 'AUG', longitude: 152.6,
+    points: [[-6.4, 8.3], [-6.7, 2.7], [-3.2, -0.8], [11.5, -1.6], [21, 5.3], [11.5, 4.3], [-4.1, -4.9], [-10.6, -7.9], [-12.5, -5.3]],
+    lines: [[0, 1, 2, 3, 4, 5, 0], [2, 6, 7, 8]],
+    visiblePoints: [0, 1, 2, 3, 4, 5, 6, 8] },
+  { name: 'Virgo', month: 'SEP', longitude: 197.9,
+    points: [[-26, -7.9], [-24.6, -2.5], [-16.2, 0.3], [-10, 1.2], [-1.8, 5.9], [2.5, 12.4], [17.2, 6.5], [24.9, 6.1], [-4.1, -13], [-6, -4.3], [5.3, 0.2], [13, -2.2], [25.8, -2.6]],
+    lines: [[0, 1, 2, 3, 4, 5, 6, 7], [8, 9, 3], [4, 10, 11, 12]],
+    visiblePoints: [1, 3, 5, 7, 8, 9, 10, 12] },
+  { name: 'Libra', month: 'OCT', longitude: 233,
+    points: [[-4.4, 5.4], [-8, -5.2], [-0.9, -12.9], [4, -6.6], [4.4, 8.7], [4.9, 10.6]],
+    lines: [[0, 1, 2, 3, 4, 5], [1, 3]],
+    visiblePoints: [0, 1, 2, 3, 4, 5] },
+  { name: 'Scorpius', month: 'NOV', longitude: 255.1,
+    points: [[-12.6, -8.2], [-12.3, -12.3], [-11.1, -15.5], [-7.3, -8.8], [-5.3, -7.9], [-3.7, -5.8], [-0.3, 1.2], [0.1, 5.5], [0.7, 10.4], [5, 11.4], [11, 11.2], [13.5, 7.9], [12.3, 6.6], [10.1, 4.4]],
+    lines: [[0, 1, 2], [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]],
+    visiblePoints: [0, 1, 2, 3, 4, 5, 6, 10, 12, 13] }
 ];
 
 function valueAt([base, rate]: [number, number], centuries: number) {
@@ -335,7 +517,7 @@ function solveEccentricAnomaly(meanAnomaly: number, eccentricity: number) {
   return eccentricAnomaly;
 }
 
-function positionPlanet(planet: OrbitalElements, date: Date): PlanetPosition {
+function orbitalFrame(planet: OrbitalElements, date: Date) {
   const julianDate = date.getTime() / 86400000 + 2440587.5;
   const centuries = (julianDate - 2451545) / 36525;
   const semiMajorAxis = valueAt(planet.a, centuries);
@@ -343,40 +525,93 @@ function positionPlanet(planet: OrbitalElements, date: Date): PlanetPosition {
   const inclination = valueAt(planet.inclination, centuries) * DEG;
   const longitude = valueAt(planet.longitude, centuries);
   const perihelion = valueAt(planet.perihelion, centuries);
-  const node = valueAt(planet.node, centuries) * DEG;
-  const argumentOfPerihelion = (perihelion - valueAt(planet.node, centuries)) * DEG;
+  const nodeDegrees = valueAt(planet.node, centuries);
+  const node = nodeDegrees * DEG;
+  const argumentOfPerihelion = (perihelion - nodeDegrees) * DEG;
   const meanAnomaly = ((((longitude - perihelion) % 360) + 540) % 360 - 180) * DEG;
-  const eccentricAnomaly = solveEccentricAnomaly(meanAnomaly, eccentricity);
-  const orbitalX = semiMajorAxis * (Math.cos(eccentricAnomaly) - eccentricity);
+
+  return {
+    semiMajorAxis,
+    eccentricity,
+    inclination,
+    node,
+    argumentOfPerihelion,
+    meanAnomaly
+  };
+}
+
+function eclipticCoordinates(frame: ReturnType<typeof orbitalFrame>, eccentricAnomaly: number) {
+  const orbitalX = frame.semiMajorAxis * (Math.cos(eccentricAnomaly) - frame.eccentricity);
   const orbitalY =
-    semiMajorAxis * Math.sqrt(1 - eccentricity * eccentricity) * Math.sin(eccentricAnomaly);
-  const cosW = Math.cos(argumentOfPerihelion);
-  const sinW = Math.sin(argumentOfPerihelion);
-  const cosNode = Math.cos(node);
-  const sinNode = Math.sin(node);
-  const cosInclination = Math.cos(inclination);
-  const eclipticX =
-    (cosW * cosNode - sinW * sinNode * cosInclination) * orbitalX +
-    (-sinW * cosNode - cosW * sinNode * cosInclination) * orbitalY;
-  const eclipticY =
-    (cosW * sinNode + sinW * cosNode * cosInclination) * orbitalX +
-    (-sinW * sinNode + cosW * cosNode * cosInclination) * orbitalY;
-  const angle = Math.atan2(eclipticY, eclipticX);
+    frame.semiMajorAxis *
+    Math.sqrt(1 - frame.eccentricity * frame.eccentricity) *
+    Math.sin(eccentricAnomaly);
+  const cosW = Math.cos(frame.argumentOfPerihelion);
+  const sinW = Math.sin(frame.argumentOfPerihelion);
+  const cosNode = Math.cos(frame.node);
+  const sinNode = Math.sin(frame.node);
+  const cosInclination = Math.cos(frame.inclination);
+
+  return {
+    x:
+      (cosW * cosNode - sinW * sinNode * cosInclination) * orbitalX +
+      (-sinW * cosNode - cosW * sinNode * cosInclination) * orbitalY,
+    y:
+      (cosW * sinNode + sinW * cosNode * cosInclination) * orbitalX +
+      (-sinW * sinNode + cosW * cosNode * cosInclination) * orbitalY
+  };
+}
+
+function sampledOrbit(planet: OrbitalElements, date: Date, steps = 120) {
+  const frame = orbitalFrame(planet, date);
+  return Array.from({ length: steps + 1 }, (_, index) =>
+    eclipticCoordinates(frame, (index / steps) * Math.PI * 2)
+  );
+}
+
+function positionPlanet(planet: OrbitalElements, date: Date): PlanetPosition {
+  const frame = orbitalFrame(planet, date);
+  const eccentricAnomaly = solveEccentricAnomaly(frame.meanAnomaly, frame.eccentricity);
+  const ecliptic = eclipticCoordinates(frame, eccentricAnomaly);
+  const angle = Math.atan2(ecliptic.y, ecliptic.x);
 
   return {
     ...planet,
     angle,
-    distance: Math.hypot(orbitalX, orbitalY),
+    distance: Math.hypot(ecliptic.x, ecliptic.y),
+    heliocentricX: ecliptic.x,
+    heliocentricY: ecliptic.y,
     x: CENTER + Math.cos(angle) * planet.displayRadius,
     y: CENTER - Math.sin(angle) * planet.displayRadius
   };
 }
 
-function Planet({ planet, showLabel }: { planet: PlanetPosition; showLabel: boolean }) {
+function Planet({
+  planet,
+  showLabel,
+  sunPosition,
+  solarDeclination
+}: {
+  planet: PlanetPosition;
+  showLabel: boolean;
+  sunPosition: { x: number; y: number };
+  solarDeclination: number;
+}) {
   const labelOnLeft = planet.x < CENTER || planet.x > 550;
   const labelX = planet.x + (labelOnLeft ? -11 : 11);
   const labelAnchor = labelOnLeft ? 'end' : 'start';
-  const lightAngle = Math.atan2(CENTER - planet.y, CENTER - planet.x) / DEG;
+  const lightAngle = Math.atan2(sunPosition.y - planet.y, sunPosition.x - planet.x) / DEG;
+  const terminatorRadius = planet.size * Math.abs(Math.sin(solarDeclination));
+  const terminatorSegment =
+    terminatorRadius < 0.001
+      ? `L ${planet.x} ${planet.y + planet.size}`
+      : `A ${terminatorRadius} ${planet.size} 0 0 ${solarDeclination < 0 ? 1 : 0} ${planet.x} ${planet.y + planet.size}`;
+  const polarDaylightPath = [
+    `M ${planet.x} ${planet.y - planet.size}`,
+    terminatorSegment,
+    `A ${planet.size} ${planet.size} 0 0 0 ${planet.x} ${planet.y - planet.size}`,
+    'Z'
+  ].join(' ');
 
   return (
     <g className="solar-planet">
@@ -386,7 +621,7 @@ function Planet({ planet, showLabel }: { planet: PlanetPosition; showLabel: bool
           className="saturn-ring"
           cx={planet.x}
           cy={planet.y}
-          rx={planet.size + 8}
+          rx={planet.size * 1.8}
           ry={planet.size * 0.48}
           transform={`rotate(-18 ${planet.x} ${planet.y})`}
         />
@@ -396,7 +631,7 @@ function Planet({ planet, showLabel }: { planet: PlanetPosition; showLabel: bool
           <circle data-body="Earth" className="earth-dark" cx={planet.x} cy={planet.y} r={planet.size} />
           <path
             className="earth-lit"
-            d={`M ${planet.x} ${planet.y - planet.size} A ${planet.size} ${planet.size} 0 0 1 ${planet.x} ${planet.y + planet.size} L ${planet.x} ${planet.y - planet.size} Z`}
+            d={polarDaylightPath}
             transform={`rotate(${lightAngle} ${planet.x} ${planet.y})`}
           />
           <circle className="earth-outline" cx={planet.x} cy={planet.y} r={planet.size} />
@@ -405,10 +640,22 @@ function Planet({ planet, showLabel }: { planet: PlanetPosition; showLabel: bool
         <circle data-body={planet.name} cx={planet.x} cy={planet.y} fill={planet.color} r={planet.size} />
       )}
       {planet.name === 'Jupiter' ? (
-        <path
-          className="jupiter-band"
-          d={`M ${planet.x - 10} ${planet.y + 2} Q ${planet.x} ${planet.y + 5} ${planet.x + 10} ${planet.y + 2}`}
-        />
+        <g>
+          <path
+            className="jupiter-band"
+            d={`M ${planet.x - planet.size * 0.82} ${planet.y + planet.size * 0.08} Q ${planet.x} ${planet.y + planet.size * 0.3} ${planet.x + planet.size * 0.82} ${planet.y + planet.size * 0.08}`}
+            strokeWidth={Math.max(0.45, planet.size * 0.12)}
+          />
+          <ellipse
+            className="jupiter-spot"
+            cx={planet.x + planet.size * 0.32}
+            cy={planet.y + planet.size * 0.17}
+            rx={planet.size * 0.23}
+            ry={planet.size * 0.14}
+            strokeWidth={Math.max(0.25, planet.size * 0.05)}
+            transform={`rotate(-8 ${planet.x + planet.size * 0.32} ${planet.y + planet.size * 0.17})`}
+          />
+        </g>
       ) : null}
       {showLabel ? (
         <text className="planet-label" x={labelX} y={planet.y - planet.size - 5} textAnchor={labelAnchor}>
@@ -420,11 +667,15 @@ function Planet({ planet, showLabel }: { planet: PlanetPosition; showLabel: bool
 }
 
 function ZodiacMap({ rotation }: { rotation: number }) {
+  const decemberLongitude = ZODIAC[0].longitude;
+
   return (
     <g aria-label="Traditional zodiac constellation ring">
       <circle className="zodiac-ring" cx={CENTER} cy={CENTER} r="309" />
-      {ZODIAC.map((constellation, index) => {
-        const angleDegrees = 90 + index * 30 + rotation / DEG;
+      {ZODIAC.map((constellation) => {
+        const longitudeOffset =
+          (constellation.longitude - decemberLongitude + 360) % 360;
+        const angleDegrees = 90 + longitudeOffset + rotation / DEG;
         const angle = angleDegrees * DEG;
         const mapRadius = 325;
         const labelRadius = 292;
@@ -432,26 +683,42 @@ function ZodiacMap({ rotation }: { rotation: number }) {
         const y = CENTER - Math.sin(angle) * mapRadius;
         const labelX = CENTER + Math.cos(angle) * labelRadius;
         const labelY = CENTER - Math.sin(angle) * labelRadius;
+        const visiblePoints = constellation.visiblePoints
+          ? new Set(constellation.visiblePoints)
+          : null;
 
         return (
           <g key={constellation.name}>
             <g transform={`translate(${x} ${y}) rotate(${90 - angleDegrees})`}>
-              {constellation.lines.map((line, lineIndex) => (
-                <polyline
-                  key={lineIndex}
-                  className="zodiac-line"
-                  points={line.map((pointIndex) => constellation.points[pointIndex].join(',')).join(' ')}
-                />
-              ))}
-              {constellation.points.map(([pointX, pointY], pointIndex) => (
-                <circle
-                  key={pointIndex}
-                  className="zodiac-star"
-                  cx={pointX}
-                  cy={pointY}
-                  r={pointIndex === 0 ? 1.45 : 1}
-                />
-              ))}
+              {constellation.lines.map((line, lineIndex) => {
+                const filteredLine = visiblePoints
+                  ? line.filter((pointIndex) => visiblePoints.has(pointIndex))
+                  : line;
+                if (filteredLine.length < 2) return null;
+                return (
+                  <polyline
+                    key={lineIndex}
+                    className="zodiac-line"
+                    points={filteredLine
+                      .map((pointIndex) => {
+                        const [pointX, pointY] = constellation.points[pointIndex];
+                        return `${-pointX},${pointY}`;
+                      })
+                      .join(' ')}
+                  />
+                );
+              })}
+              {constellation.points.map(([pointX, pointY], pointIndex) =>
+                !visiblePoints || visiblePoints.has(pointIndex) ? (
+                  <circle
+                    key={pointIndex}
+                    className="zodiac-star"
+                    cx={-pointX}
+                    cy={pointY}
+                    r="1"
+                  />
+                ) : null
+              )}
             </g>
             <text className="zodiac-label" x={labelX} y={labelY - 2} textAnchor="middle">
               {constellation.name}
@@ -467,19 +734,24 @@ function ZodiacMap({ rotation }: { rotation: number }) {
 }
 
 export function SolarSystemLive() {
-  const [now, setNow] = useState<Date | null>(null);
+  const [liveNow, setLiveNow] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState<number | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [settings, setSettings] = useState<ViewSettings>(DEFAULT_SETTINGS);
   const [animatedRotation, setAnimatedRotation] = useState(0);
   const [rotationAnimating, setRotationAnimating] = useState(false);
+  const [centerProgress, setCenterProgress] = useState(0);
   const [locationDraft, setLocationDraft] = useState({ latitude: '', longitude: '' });
   const [locationStatus, setLocationStatus] = useState('');
   const rotationFrame = useRef<number | null>(null);
+  const centerFrame = useRef<number | null>(null);
 
   useEffect(() => {
     const readUrl = () => {
       const next = readSettings(window.location.search);
       setSettings(next);
+      setSelectedTime(readSelectedTime(window.location.search));
+      setCenterProgress(next.centerMode === 'earth' ? 1 : 0);
       setLocationDraft({
         latitude: next.latitude === null ? '' : String(next.latitude),
         longitude: next.longitude === null ? '' : String(next.longitude)
@@ -487,17 +759,23 @@ export function SolarSystemLive() {
     };
     const start = window.setTimeout(() => {
       readUrl();
-      setNow(new Date());
+      setLiveNow(new Date());
     }, 0);
-    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    const timer = window.setInterval(() => setLiveNow(new Date()), 1000);
     window.addEventListener('popstate', readUrl);
     return () => {
       window.clearTimeout(start);
       window.clearInterval(timer);
       window.removeEventListener('popstate', readUrl);
       if (rotationFrame.current !== null) window.cancelAnimationFrame(rotationFrame.current);
+      if (centerFrame.current !== null) window.cancelAnimationFrame(centerFrame.current);
     };
   }, []);
+
+  const now = selectedTime === null ? liveNow : new Date(selectedTime);
+  const timeSliderValue = liveNow
+    ? timeOffsetToSlider((selectedTime ?? liveNow.getTime()) - liveNow.getTime())
+    : 0;
 
   function updateSettings(update: (current: ViewSettings) => ViewSettings) {
     setSettings((current) => {
@@ -507,11 +785,61 @@ export function SolarSystemLive() {
     });
   }
 
+  function setTimeFromSlider(value: number) {
+    if (!liveNow || Math.abs(value) < 0.0005) {
+      setSelectedTime(null);
+      writeSelectedTime(null);
+      return;
+    }
+    const timestamp = Math.round((liveNow.getTime() + timeSliderToOffset(value)) / 60000) * 60000;
+    setSelectedTime(timestamp);
+    writeSelectedTime(timestamp);
+  }
+
+  function setTimeFromDateTime(value: string) {
+    const timestamp = new Date(value).getTime();
+    if (!Number.isFinite(timestamp)) return;
+    setSelectedTime(timestamp);
+    writeSelectedTime(timestamp);
+  }
+
   function setBodyVisible(name: BodyName, visible: boolean) {
     updateSettings((current) => ({
       ...current,
       visibleBodies: { ...current.visibleBodies, [name]: visible }
     }));
+  }
+
+  function setCenterMode(centerMode: CenterMode) {
+    if (centerMode === settings.centerMode) return;
+    if (centerFrame.current !== null) window.cancelAnimationFrame(centerFrame.current);
+
+    const from = centerProgress;
+    const destination = centerMode === 'earth' ? 1 : 0;
+    updateSettings((current) => ({ ...current, centerMode }));
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setCenterProgress(destination);
+      return;
+    }
+
+    const startedAt = window.performance.now();
+    const duration = 1150;
+    const animate = (timestamp: number) => {
+      const progress = Math.min(1, (timestamp - startedAt) / duration);
+      const eased = progress < 0.5
+        ? 4 * progress * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+      setCenterProgress(mix(from, destination, eased));
+
+      if (progress < 1) {
+        centerFrame.current = window.requestAnimationFrame(animate);
+      } else {
+        centerFrame.current = null;
+      }
+    };
+
+    centerFrame.current = window.requestAnimationFrame(animate);
   }
 
   function applyLocation(latitude: number, longitude: number) {
@@ -582,6 +910,7 @@ export function SolarSystemLive() {
     ? rotationForOrientation(settings.orientation, naturalEarth.angle, naturalLocationAngle)
     : 0;
   const viewRotation = rotationAnimating ? animatedRotation : targetRotation;
+  const sceneRotation = viewRotation + CALENDAR_ROTATION;
 
   function setOrientation(orientation: Orientation) {
     if (!naturalEarth || orientation === settings.orientation) return;
@@ -618,28 +947,181 @@ export function SolarSystemLive() {
 
     rotationFrame.current = window.requestAnimationFrame(animate);
   }
+  const orbitSamples = useMemo(
+    () =>
+      now
+        ? Object.fromEntries(PLANETS.map((planet) => [planet.name, sampledOrbit(planet, now)]))
+        : {},
+    [now]
+  ) as Partial<Record<PlanetName, Array<{ x: number; y: number }>>>;
+  const earthRaw = naturalEarth
+    ? { x: naturalEarth.heliocentricX, y: naturalEarth.heliocentricY }
+    : { x: 0, y: 0 };
+  const sunEclipticLongitude = Math.atan2(-earthRaw.y, -earthRaw.x);
+  const solarDeclination = Math.asin(
+    Math.sin(23.43928 * DEG) * Math.sin(sunEclipticLongitude)
+  );
+  const sunEarthCentered = geocentricPoint(
+    -earthRaw.x,
+    -earthRaw.y,
+    sceneRotation,
+    settings.radialSpread ?? 0
+  );
+  const sunPosition = mixPoint(
+    { x: CENTER, y: CENTER },
+    sunEarthCentered,
+    centerProgress
+  );
+  const sunRadius = mix(15, 8, centerProgress);
+
   const planets = naturalPlanets.map((planet) => {
-    const angle = planet.angle + viewRotation;
-    return {
-      ...planet,
-      angle,
+    const angle = planet.angle + sceneRotation;
+    const sunCentered = {
       x: CENTER + Math.cos(angle) * planet.displayRadius,
       y: CENTER - Math.sin(angle) * planet.displayRadius
     };
+    const earthCentered = geocentricPoint(
+      planet.heliocentricX - earthRaw.x,
+      planet.heliocentricY - earthRaw.y,
+      sceneRotation,
+      settings.radialSpread ?? 0
+    );
+    const point = mixPoint(sunCentered, earthCentered, centerProgress);
+
+    return {
+      ...planet,
+      angle,
+      size: mix(planet.size, EARTH_CENTERED_PLANET_SIZES[planet.name], centerProgress),
+      x: point.x,
+      y: point.y
+    };
   });
   const earth = planets.find((planet) => planet.name === 'Earth');
+  const orbitPaths = PLANETS.map((planet) => {
+    const samples = orbitSamples[planet.name] || [];
+    const points = samples.map((sample) => {
+      const angle = Math.atan2(sample.y, sample.x) + sceneRotation;
+      const sunCentered = {
+        x: CENTER + Math.cos(angle) * planet.displayRadius,
+        y: CENTER - Math.sin(angle) * planet.displayRadius
+      };
+      const earthCentered = geocentricPoint(
+        sample.x - earthRaw.x,
+        sample.y - earthRaw.y,
+        sceneRotation,
+        settings.radialSpread ?? 0
+      );
+      return mixPoint(sunCentered, earthCentered, centerProgress);
+    });
+
+    return {
+      name: planet.name,
+      path: points
+        .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+        .join(' ')
+    };
+  });
   const daysSinceJ2000 = now ? now.getTime() / 86400000 + 2440587.5 - 2451545 : 0;
-  const moonAngle = ((218.316 + 13.176396 * daysSinceJ2000) % 360) * DEG + viewRotation;
-  const moonX = earth ? earth.x + Math.cos(moonAngle) * 18 : 0;
-  const moonY = earth ? earth.y - Math.sin(moonAngle) * 18 : 0;
-  const moonLightAngle = Math.atan2(CENTER - moonY, CENTER - moonX) / DEG;
-  const moonRadius = 3.6;
+  const moonAngle = ((218.316 + 13.176396 * daysSinceJ2000) % 360) * DEG + sceneRotation;
+  const naturalEarthDisplay = naturalEarth
+    ? {
+        x: CENTER + Math.cos(naturalEarth.angle + sceneRotation) * naturalEarth.displayRadius,
+        y: CENTER - Math.sin(naturalEarth.angle + sceneRotation) * naturalEarth.displayRadius
+      }
+    : { x: CENTER, y: CENTER };
+  const moonSunCentered = {
+    x: naturalEarthDisplay.x + Math.cos(moonAngle) * 18,
+    y: naturalEarthDisplay.y - Math.sin(moonAngle) * 18
+  };
+  const earthCenteredMoonRadius = mix(
+    EARTH_CENTERED_MOON_RADIUS,
+    GEOCENTRIC_RADIUS,
+    settings.radialSpread ?? 0
+  );
+  const moonEarthCentered = {
+    x: CENTER + Math.cos(moonAngle) * earthCenteredMoonRadius,
+    y: CENTER - Math.sin(moonAngle) * earthCenteredMoonRadius
+  };
+  const moonPosition = mixPoint(moonSunCentered, moonEarthCentered, centerProgress);
+  const moonX = moonPosition.x;
+  const moonY = moonPosition.y;
+  const moonLightAngle = Math.atan2(sunPosition.y - moonY, sunPosition.x - moonX) / DEG;
+  const moonRadius = mix(3.6, 8, centerProgress);
+  const moonOrbitRadius = mix(18, earthCenteredMoonRadius, centerProgress);
   const projectedLocation =
     now && settings.latitude !== null && settings.longitude !== null
-      ? projectEarthLocation(settings.latitude, settings.longitude, now, viewRotation)
+      ? projectEarthLocation(settings.latitude, settings.longitude, now, sceneRotation)
       : null;
   const locationX = earth && projectedLocation ? earth.x + projectedLocation.x * earth.size : 0;
   const locationY = earth && projectedLocation ? earth.y - projectedLocation.y * earth.size : 0;
+  const alignmentAngle = naturalEarth
+    ? naturalEarth.angle + sceneRotation + Math.PI
+    : 0;
+  const alignmentStart = earth
+    ? mixPoint(sunPosition, { x: earth.x, y: earth.y }, centerProgress)
+    : sunPosition;
+  const daylightHalfAngle =
+    settings.latitude === null ? 0 : daylightHourAngle(settings.latitude, solarDeclination);
+  const daylightCenterAngle = earth
+    ? Math.atan2(earth.y - sunPosition.y, sunPosition.x - earth.x)
+    : 0;
+  const daylightWedgePath = earth
+    ? radialWedgePath(
+        earth.x,
+        earth.y,
+        DAYLIGHT_WEDGE_RADIUS,
+        daylightCenterAngle,
+        daylightHalfAngle
+      )
+    : '';
+  const daylightHours = (daylightHalfAngle / Math.PI) * 24;
+  const observerZenith =
+    now && settings.latitude !== null && settings.longitude !== null
+      ? projectObserverZenith(settings.latitude, settings.longitude, now, sceneRotation)
+      : null;
+  const currentSkyCenterAngle = projectedLocation
+    ? Math.atan2(projectedLocation.y, projectedLocation.x)
+    : 0;
+  const currentSkyVisiblePath =
+    earth && projectedLocation
+      ? radialWedgePath(
+          earth.x,
+          earth.y,
+          DAYLIGHT_WEDGE_RADIUS,
+          currentSkyCenterAngle,
+          Math.PI / 2
+        )
+      : '';
+  const currentSkyHiddenPath =
+    earth && projectedLocation
+      ? radialWedgePath(
+          earth.x,
+          earth.y,
+          DAYLIGHT_WEDGE_RADIUS,
+          currentSkyCenterAngle + Math.PI,
+          Math.PI / 2
+        )
+      : '';
+  const sunDirectionLength = Math.hypot(earthRaw.x, earthRaw.y) || 1;
+  const rotatedSunDirection = rotateVector(
+    -earthRaw.x / sunDirectionLength,
+    -earthRaw.y / sunDirectionLength,
+    sceneRotation
+  );
+  const sunAltitude = observerZenith
+    ? Math.asin(
+        Math.min(
+          1,
+          Math.max(
+            -1,
+            observerZenith.x * rotatedSunDirection.x +
+              observerZenith.y * rotatedSunDirection.y
+          )
+        )
+      ) / DEG
+    : 0;
+  const twilightBlend = Math.min(1, Math.max(0, (3 - sunAltitude) / 9));
+  const nightBlend = Math.min(1, Math.max(0, (-6 - sunAltitude) / 6));
 
   if (!now) {
     return <div className="solar-loading">Locating the planets…</div>;
@@ -660,13 +1142,98 @@ export function SolarSystemLive() {
       {menuOpen ? (
         <aside className="solar-menu-panel">
           <section>
-            <span className="solar-menu-heading">Current time</span>
+            <span className="solar-menu-heading">Displayed time</span>
             <time dateTime={now.toISOString()}>
               {now.toLocaleString(undefined, {
                 dateStyle: 'medium',
                 timeStyle: 'medium'
               })}
             </time>
+            <label className="solar-time-control">
+              <input
+                aria-label="Time offset from now"
+                max="1000"
+                min="-1000"
+                onChange={(event) => setTimeFromSlider(Number(event.target.value) / 1000)}
+                step="1"
+                type="range"
+                value={Math.round(timeSliderValue * 1000)}
+              />
+              <span className="solar-time-scale">
+                <small className="edge-start" style={{ left: '0%' }}>−20 years</small>
+                <small style={{ left: '16.667%' }}>−1 year</small>
+                <small style={{ left: '37.5%' }}>−1 day</small>
+                <small style={{ left: '50%' }}>Now</small>
+                <small style={{ left: '62.5%' }}>+1 day</small>
+                <small style={{ left: '83.333%' }}>+1 year</small>
+                <small className="edge-end" style={{ left: '100%' }}>+20 years</small>
+              </span>
+            </label>
+            <label className="solar-date-time-control">
+              <span>Date and time</span>
+              <input
+                max={liveNow ? localDateTimeValue(new Date(liveNow.getTime() + TIME_RANGE_MS)) : undefined}
+                min={liveNow ? localDateTimeValue(new Date(liveNow.getTime() - TIME_RANGE_MS)) : undefined}
+                onChange={(event) => setTimeFromDateTime(event.target.value)}
+                type="datetime-local"
+                value={localDateTimeValue(now)}
+              />
+            </label>
+            <button
+              className="solar-now-button"
+              disabled={selectedTime === null}
+              onClick={() => setTimeFromSlider(0)}
+              type="button"
+            >
+              Return to now
+            </button>
+          </section>
+
+          <section>
+            <span className="solar-menu-heading">Center</span>
+            <label className="solar-toggle">
+              <input
+                checked={settings.centerMode === 'sun'}
+                name="center-mode"
+                onChange={() => setCenterMode('sun')}
+                type="radio"
+              />
+              Sun centered
+            </label>
+            <label className="solar-toggle">
+              <input
+                checked={settings.centerMode === 'earth'}
+                name="center-mode"
+                onChange={() => setCenterMode('earth')}
+                type="radio"
+              />
+              Earth centered
+            </label>
+            <label className={`solar-range-control${settings.centerMode === 'sun' ? ' disabled' : ''}`}>
+              <span>
+                Radial compression
+                <output>{Math.round((settings.radialSpread ?? 0) * 100)}%</output>
+              </span>
+              <input
+                aria-label="Earth-centered radial compression"
+                disabled={settings.centerMode === 'sun'}
+                max="100"
+                min="0"
+                onChange={(event) =>
+                  updateSettings((current) => ({
+                    ...current,
+                    radialSpread: Number(event.target.value) / 100
+                  }))
+                }
+                step="1"
+                type="range"
+                value={Math.round((settings.radialSpread ?? 0) * 100)}
+              />
+              <span className="solar-range-ends">
+                <small>Current</small>
+                <small>One circle</small>
+              </span>
+            </label>
           </section>
 
           <section>
@@ -696,7 +1263,7 @@ export function SolarSystemLive() {
                 onChange={() => setOrientation('earth-bottom')}
                 type="radio"
               />
-              Earth at bottom
+              Sun at top
             </label>
             <label className="solar-toggle">
               <input
@@ -742,6 +1309,24 @@ export function SolarSystemLive() {
               />
               Zodiac map
             </label>
+            <span className="solar-overlay-heading">Sky overlay</span>
+            {([
+              ['off', 'Off'],
+              ['daylight', 'Daylight window'],
+              ['current', 'Current sky']
+            ] as Array<[SkyOverlay, string]>).map(([value, label]) => (
+              <label className="solar-toggle" key={value}>
+                <input
+                  checked={(settings.skyOverlay ?? 'daylight') === value}
+                  name="sky-overlay"
+                  onChange={() =>
+                    updateSettings((current) => ({ ...current, skyOverlay: value }))
+                  }
+                  type="radio"
+                />
+                {label}
+              </label>
+            ))}
           </section>
 
           <section>
@@ -824,6 +1409,15 @@ export function SolarSystemLive() {
               is a positional diagram, not a scale model.
             </p>
             <p>
+              Earth-centered mode translates every position relative to Earth and compresses large
+              distances so the visible planets remain inside the zodiac ring.
+            </p>
+            <p>
+              With a location set, the sky overlay can show either the seasonal daylight window or
+              the half of the ecliptic currently above your horizon. Current sky shifts from blue
+              through violet, then shades the sky outside your view after dark.
+            </p>
+            <p>
               The zodiac is a stylized, evenly spaced seasonal ring. In the December-at-top view,
               Sagittarius is at the top; Earth-oriented views rotate the entire map. Each
               constellation’s north points outward.
@@ -844,6 +1438,14 @@ export function SolarSystemLive() {
             >
               Zodiac and ecliptic: NASA/GSFC ↗
             </a>
+            <a
+              className="solar-source"
+              href="https://github.com/ofrohn/d3-celestial"
+              rel="noreferrer"
+              target="_blank"
+            >
+              Constellation lines: d3-celestial ↗
+            </a>
           </section>
         </aside>
       ) : null}
@@ -860,18 +1462,96 @@ export function SolarSystemLive() {
               <stop offset="0.48" stopColor="#ffc928" />
               <stop offset="1" stopColor="#f07b16" />
             </radialGradient>
+            <radialGradient
+              cx={earth?.x ?? CENTER}
+              cy={earth?.y ?? CENTER}
+              gradientUnits="userSpaceOnUse"
+              id="daylight-wedge-gradient"
+              r={DAYLIGHT_WEDGE_RADIUS}
+            >
+              <stop offset="0" stopColor="#35a5ff" stopOpacity="0.36" />
+              <stop offset="0.32" stopColor="#238be8" stopOpacity="0.21" />
+              <stop offset="0.72" stopColor="#176cbd" stopOpacity="0.08" />
+              <stop offset="1" stopColor="#0a3a73" stopOpacity="0" />
+            </radialGradient>
+            <radialGradient
+              cx={earth?.x ?? CENTER}
+              cy={earth?.y ?? CENTER}
+              gradientUnits="userSpaceOnUse"
+              id="current-sky-twilight-gradient"
+              r={DAYLIGHT_WEDGE_RADIUS}
+            >
+              <stop offset="0" stopColor="#7569dc" stopOpacity="0.31" />
+              <stop offset="0.42" stopColor="#584eaf" stopOpacity="0.18" />
+              <stop offset="1" stopColor="#302b68" stopOpacity="0" />
+            </radialGradient>
+            <radialGradient
+              cx={earth?.x ?? CENTER}
+              cy={earth?.y ?? CENTER}
+              gradientUnits="userSpaceOnUse"
+              id="current-sky-night-gradient"
+              r={DAYLIGHT_WEDGE_RADIUS}
+            >
+              <stop offset="0" stopColor="#343d82" stopOpacity="0.3" />
+              <stop offset="0.55" stopColor="#252c66" stopOpacity="0.2" />
+              <stop offset="1" stopColor="#171c48" stopOpacity="0.1" />
+            </radialGradient>
           </defs>
 
         <rect x="-35" y="-35" width="710" height="710" fill="#000000" />
+        {earth &&
+        settings.visibleBodies.Earth &&
+        (settings.skyOverlay ?? 'daylight') === 'daylight' &&
+        projectedLocation &&
+        daylightWedgePath &&
+        centerProgress > 0 ? (
+          <path
+            aria-label={`Estimated daylight window: ${daylightHours.toFixed(1)} hours`}
+            className="daylight-wedge"
+            d={daylightWedgePath}
+            data-daylight-hours={daylightHours.toFixed(2)}
+            fill="url(#daylight-wedge-gradient)"
+            opacity={centerProgress}
+          >
+            <title>{`Estimated daylight window at ${settings.latitude?.toFixed(2)}° latitude: ${daylightHours.toFixed(1)} hours`}</title>
+          </path>
+        ) : null}
+        {earth &&
+        settings.visibleBodies.Earth &&
+        (settings.skyOverlay ?? 'daylight') === 'current' &&
+        observerZenith &&
+        currentSkyVisiblePath &&
+        currentSkyHiddenPath &&
+        centerProgress > 0 ? (
+          <g
+            aria-label={`Current sky; Sun altitude ${sunAltitude.toFixed(1)} degrees`}
+            className="current-sky-overlay"
+            data-sun-altitude={sunAltitude.toFixed(2)}
+          >
+            <path
+              d={currentSkyVisiblePath}
+              fill="url(#daylight-wedge-gradient)"
+              opacity={centerProgress * (1 - nightBlend) * (1 - twilightBlend)}
+            />
+            <path
+              d={currentSkyVisiblePath}
+              fill="url(#current-sky-twilight-gradient)"
+              opacity={centerProgress * (1 - nightBlend) * twilightBlend}
+            />
+            <path
+              d={currentSkyHiddenPath}
+              fill="url(#current-sky-night-gradient)"
+              opacity={centerProgress * nightBlend}
+            />
+          </g>
+        ) : null}
         {settings.showZodiac ? <ZodiacMap rotation={viewRotation} /> : null}
         {settings.showOrbits
-          ? PLANETS.map((planet) => (
-              <circle
-                key={planet.name}
+          ? orbitPaths.map((orbit) => (
+              <path
+                key={orbit.name}
                 className="orbit-line"
-                cx={CENTER}
-                cy={CENTER}
-                r={planet.displayRadius}
+                d={orbit.path}
               />
             ))
           : null}
@@ -879,16 +1559,27 @@ export function SolarSystemLive() {
         {settings.showZodiac && settings.visibleBodies.Earth && earth ? (
           <line
             className="earth-alignment"
-            x1={CENTER}
-            y1={CENTER}
-            x2={CENTER + Math.cos(earth.angle) * 346}
-            y2={CENTER - Math.sin(earth.angle) * 346}
+            x1={alignmentStart.x}
+            y1={alignmentStart.y}
+            x2={CENTER + Math.cos(alignmentAngle) * 346}
+            y2={CENTER - Math.sin(alignmentAngle) * 346}
           />
         ) : null}
 
-        <circle cx={CENTER} cy={CENTER} fill="url(#sun-glow)" r="15" />
+        <circle
+          data-body="Sun"
+          cx={sunPosition.x}
+          cy={sunPosition.y}
+          fill="url(#sun-glow)"
+          r={sunRadius}
+        />
         {settings.showLabels ? (
-          <text className="sun-label" x={CENTER} y={CENTER + 34} textAnchor="middle">
+          <text
+            className="sun-label"
+            x={sunPosition.x}
+            y={sunPosition.y + sunRadius + 19}
+            textAnchor="middle"
+          >
             Sun
           </text>
         ) : null}
@@ -896,7 +1587,13 @@ export function SolarSystemLive() {
         {planets
           .filter((planet) => settings.visibleBodies[planet.name])
           .map((planet) => (
-            <Planet key={planet.name} planet={planet} showLabel={settings.showLabels} />
+            <Planet
+              key={planet.name}
+              planet={planet}
+              showLabel={settings.showLabels}
+              solarDeclination={solarDeclination}
+              sunPosition={sunPosition}
+            />
           ))}
 
         {earth && settings.visibleBodies.Earth && projectedLocation ? (
@@ -918,7 +1615,12 @@ export function SolarSystemLive() {
         {earth && settings.visibleBodies.Moon ? (
           <g>
             {settings.showOrbits ? (
-              <circle className="moon-orbit" cx={earth.x} cy={earth.y} r="18" />
+              <circle
+                className="moon-orbit"
+                cx={earth.x}
+                cy={earth.y}
+                r={moonOrbitRadius}
+              />
             ) : null}
               <circle className="moon-dark" cx={moonX} cy={moonY} r={moonRadius} />
               <path
