@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { LatticeRegion } from '@/components/LatticeRegion';
 import { HillOverlay } from '@/components/HillOverlay';
 import {
@@ -36,11 +36,55 @@ export function TrackBoard({
   showMoveOptions = false,
   previewAcceleration
 }: TrackBoardProps) {
+  const seenMoveIds = useRef(new Set<string>());
+  const movesInitialized = useRef(false);
+  const animationTimeouts = useRef<number[]>([]);
+  const [animatingMoveIds, setAnimatingMoveIds] = useState<Set<string>>(new Set());
+
+  useLayoutEffect(() => {
+    if (!movesInitialized.current) {
+      seenMoveIds.current = new Set(moves.map((move) => move.id));
+      movesInitialized.current = true;
+      return;
+    }
+
+    const newMoveIds = moves
+      .filter((move) => !seenMoveIds.current.has(move.id))
+      .map((move) => move.id);
+    if (newMoveIds.length === 0) return;
+
+    for (const moveId of newMoveIds) seenMoveIds.current.add(moveId);
+    setAnimatingMoveIds((current) => new Set([...current, ...newMoveIds]));
+    const timeout = window.setTimeout(() => {
+      setAnimatingMoveIds((current) => {
+        const next = new Set(current);
+        for (const moveId of newMoveIds) next.delete(moveId);
+        return next;
+      });
+    }, 900);
+    animationTimeouts.current.push(timeout);
+  }, [moves]);
+
+  useEffect(
+    () => () => {
+      for (const timeout of animationTimeouts.current) window.clearTimeout(timeout);
+    },
+    []
+  );
+
+  const isAnimatingRound = animatingMoveIds.size > 0;
+  const animatingMovesByParticipant = useMemo(() => {
+    const result = new Map<string, MoveState>();
+    for (const move of moves) {
+      if (animatingMoveIds.has(move.id)) result.set(move.participant_id, move);
+    }
+    return result;
+  }, [animatingMoveIds, moves]);
   const active = participants.find((participant) => participant.id === activeParticipantId);
   const activePosition = active ? { x: active.position_x, y: active.position_y } : null;
   const activeHillPush = activePosition ? hillPushAt(track, activePosition) : { x: 0, y: 0 };
   const currentVelocityMove =
-    active && showCurrentVelocity
+    active && showCurrentVelocity && !isAnimatingRound
       ? applyAcceleration(
           activePosition!,
           { x: active.velocity_x, y: active.velocity_y },
@@ -48,7 +92,7 @@ export function TrackBoard({
         )
       : null;
   const possibleMoves =
-    active && showMoveOptions
+    active && showMoveOptions && !isAnimatingRound
       ? getPossibleMoves(
           activePosition!,
           { x: active.velocity_x, y: active.velocity_y },
@@ -56,7 +100,7 @@ export function TrackBoard({
         ).filter((move) => isPointOnTrack(track, move.position))
       : [];
   const previewMove =
-    active && previewAcceleration
+    active && previewAcceleration && !isAnimatingRound
       ? applyAcceleration(
           activePosition!,
           { x: active.velocity_x, y: active.velocity_y },
@@ -141,19 +185,23 @@ export function TrackBoard({
         {moves.map((move) => {
           const participant = participants.find((item) => item.id === move.participant_id);
           if (!participant) return null;
+          const animating = animatingMoveIds.has(move.id);
+          const isActiveParticipant = move.participant_id === activeParticipantId;
           const from = geometry.map({ x: move.from_x, y: move.from_y });
           const to = geometry.map({ x: move.to_x, y: move.to_y });
           return (
             <line
+              className={animating ? 'move-path move-path-animating' : 'move-path'}
               key={move.id}
+              pathLength="1"
               x1={from.x}
               y1={from.y}
               x2={to.x}
               y2={to.y}
               stroke={participant.color}
-              strokeDasharray={move.valid ? undefined : '0.18 0.12'}
+              strokeDasharray={animating || move.valid ? undefined : '0.18 0.12'}
               strokeLinecap="round"
-              strokeWidth="0.12"
+              strokeWidth={isActiveParticipant ? 0.18 : 0.12}
             />
           );
         })}
@@ -162,16 +210,18 @@ export function TrackBoard({
           if (!move.valid) return null;
           const participant = participants.find((item) => item.id === move.participant_id);
           if (!participant) return null;
+          const isActiveParticipant = move.participant_id === activeParticipantId;
           const stop = geometry.map({ x: move.to_x, y: move.to_y });
           return (
             <circle
+              className={animatingMoveIds.has(move.id) ? 'stop-dot stop-dot-animating' : 'stop-dot'}
               key={`stop:${move.id}`}
               cx={stop.x}
               cy={stop.y}
-              r="0.15"
+              r={isActiveParticipant ? 0.2 : 0.15}
               fill={participant.color}
               stroke="white"
-              strokeWidth="0.04"
+              strokeWidth={isActiveParticipant ? 0.05 : 0.04}
             />
           );
         })}
@@ -234,7 +284,12 @@ export function TrackBoard({
         ) : null}
 
         {participants.map((participant) => {
-          const position = geometry.map({ x: participant.position_x, y: participant.position_y });
+          const animatingMove = animatingMovesByParticipant.get(participant.id);
+          const position = geometry.map(
+            animatingMove
+              ? { x: animatingMove.from_x, y: animatingMove.from_y }
+              : { x: participant.position_x, y: participant.position_y }
+          );
           return (
             <g key={participant.id}>
               <circle

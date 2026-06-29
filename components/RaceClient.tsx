@@ -38,6 +38,7 @@ export function RaceClient({ initialRace }: { initialRace: RaceState }) {
   const [busy, setBusy] = useState(false);
   const [savingSelection, setSavingSelection] = useState(false);
   const [draftAcceleration, setDraftAcceleration] = useState<Velocity | null>(null);
+  const [draftTurnNumber, setDraftTurnNumber] = useState(initialRace.turn_number);
 
   const participant = useMemo(
     () => race.participants.find((item) => item.id === participantId),
@@ -58,6 +59,7 @@ export function RaceClient({ initialRace }: { initialRace: RaceState }) {
       setDraftAcceleration(
         participant?.status === 'racing' && participant.recovery_turns_remaining === 0 ? { x: 0, y: 0 } : null
       );
+      setDraftTurnNumber(race.turn_number);
     });
   }, [participant?.id, participant?.recovery_turns_remaining, participant?.status, race.started_at, race.turn_number]);
 
@@ -137,7 +139,15 @@ export function RaceClient({ initialRace }: { initialRace: RaceState }) {
   }
 
   async function submitMove() {
-    if (!participant || !draftAcceleration || hasSubmitted) return;
+    if (
+      !participant ||
+      !draftAcceleration ||
+      hasSubmitted ||
+      draftTurnNumber !== race.turn_number ||
+      participant.turn_count >= race.turn_number
+    ) {
+      return;
+    }
     setBusy(true);
     setMessage('');
 
@@ -163,8 +173,16 @@ export function RaceClient({ initialRace }: { initialRace: RaceState }) {
   }
 
   async function selectAcceleration(acceleration: Velocity) {
-    if (!participant || hasSubmitted || participant.recovery_turns_remaining > 0) return;
+    if (
+      !participant ||
+      hasSubmitted ||
+      participant.recovery_turns_remaining > 0 ||
+      participant.turn_count >= race.turn_number
+    ) {
+      return;
+    }
     setDraftAcceleration(acceleration);
+    setDraftTurnNumber(race.turn_number);
     setSavingSelection(true);
     setMessage('');
 
@@ -219,18 +237,23 @@ export function RaceClient({ initialRace }: { initialRace: RaceState }) {
             race.show_current_velocity &&
             race.status === 'running' &&
             Boolean(participant) &&
+            participant!.turn_count < race.turn_number &&
             participant?.recovery_turns_remaining === 0
           }
           showMoveOptions={
             race.show_potential_endpoints &&
             race.status === 'running' &&
             Boolean(participant) &&
+            participant!.turn_count < race.turn_number &&
             participant?.recovery_turns_remaining === 0 &&
             !hasSubmitted
           }
           previewAcceleration={
             race.show_chosen_velocity &&
             race.status === 'running' &&
+            draftTurnNumber === race.turn_number &&
+            Boolean(participant) &&
+            participant!.turn_count < race.turn_number &&
             participant?.recovery_turns_remaining === 0
               ? draftAcceleration || undefined
               : undefined
@@ -310,6 +333,7 @@ export function RaceClient({ initialRace }: { initialRace: RaceState }) {
                       hasSubmitted ||
                       race.status !== 'running' ||
                       race.turn_resolving ||
+                      participant.turn_count >= race.turn_number ||
                       participant.recovery_turns_remaining > 0 ||
                       participant.status !== 'racing'
                     }
@@ -337,6 +361,7 @@ export function RaceClient({ initialRace }: { initialRace: RaceState }) {
                     hasSubmitted ||
                     race.status !== 'running' ||
                     race.turn_resolving ||
+                    participant.turn_count >= race.turn_number ||
                     participant.recovery_turns_remaining > 0 ||
                     participant.status !== 'racing'
                   }
@@ -356,6 +381,8 @@ export function RaceClient({ initialRace }: { initialRace: RaceState }) {
                     savingSelection ||
                     race.status !== 'running' ||
                     race.turn_resolving ||
+                    draftTurnNumber !== race.turn_number ||
+                    participant.turn_count >= race.turn_number ||
                     participant.recovery_turns_remaining > 0 ||
                     participant.status !== 'racing'
                   }

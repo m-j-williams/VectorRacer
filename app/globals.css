@@ -88,6 +88,7 @@ input {
 }
 
 .race-layout {
+  align-items: start;
   grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.7fr);
 }
 
@@ -176,9 +177,18 @@ input {
 }
 
 .race-controls {
-  align-items: end;
+  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  min-height: 112px;
+}
+
+.race-control-note {
+  align-items: center;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
+  min-height: 42px;
+  text-align: right;
 }
 
 .timer-control {
@@ -247,6 +257,16 @@ input {
   font-size: 1.25rem;
 }
 
+.turn-status-grid .stat {
+  min-height: 78px;
+}
+
+.turn-status-grid strong {
+  font-variant-numeric: tabular-nums;
+  min-height: 1.5em;
+  white-space: nowrap;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -279,6 +299,42 @@ input {
   display: block;
   height: 100%;
   width: 100%;
+}
+
+.move-path-animating {
+  animation: draw-move-path 700ms ease-out forwards;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.stop-dot-animating {
+  animation: reveal-stop-dot 150ms ease-out 700ms forwards;
+  opacity: 0;
+}
+
+@keyframes draw-move-path {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes reveal-stop-dot {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .move-path-animating,
+  .stop-dot-animating {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
 }
 
 .accel-grid {
@@ -382,5 +438,15 @@ input {
 
   .band {
     padding: 18px;
+  }
+
+  .race-controls {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .race-control-note {
+    justify-content: flex-start;
+    text-align: left;
   }
 }

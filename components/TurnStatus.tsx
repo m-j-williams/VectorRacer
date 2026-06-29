@@ -36,7 +36,7 @@ export function TurnStatus({ turnNumber, deadline, ready, total, resolving, stat
               : `${seconds}s`;
 
   return (
-    <div className="stat-grid">
+    <div className="stat-grid turn-status-grid">
       <div className="stat">
         <span className="muted">Round</span>
         <strong>{turnNumber}</strong>
