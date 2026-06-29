@@ -3,8 +3,8 @@ import Link from 'next/link';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Vector Racer',
-  description: 'A classroom vector racing game for physics instruction.'
+  title: 'Classroom Tools',
+  description: 'Interactive tools for active classrooms.'
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -15,11 +15,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <header className="topbar">
             <Link className="brand" href="/">
               <span className="brand-mark" />
-              <span>Vector Racer</span>
+              <span>Classroom Tools</span>
             </Link>
             <nav className="row">
-              <Link className="button secondary" href="/instructor">
-                Instructor
+              <Link className="nav-link" href="/">
+                All tools
+              </Link>
+              <Link className="nav-link" href="/tools/vector-racer">
+                Vector Racer
               </Link>
             </nav>
           </header>

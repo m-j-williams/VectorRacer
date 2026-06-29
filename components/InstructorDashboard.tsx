@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useState } from 'react';
 import {
   ChevronDown,
   ChevronLeft,
@@ -15,7 +14,6 @@ import {
   Download,
   Plus,
   RotateCcw,
-  Trophy,
   Upload
 } from 'lucide-react';
 import { TrackBoard } from '@/components/TrackBoard';
@@ -40,12 +38,6 @@ import {
   type Velocity
 } from '@/lib/game';
 
-type LocalRace = {
-  code: string;
-  createdAt: string;
-};
-
-const racesStorageKey = 'vector-racer:instructor-races';
 const testDriverId = 'test-driver';
 
 const accelButtons = [
@@ -61,19 +53,6 @@ type TestDriveState = {
   draftAcceleration: Velocity;
   message: string;
 };
-
-function readLocalRaces() {
-  if (typeof window === 'undefined') return [];
-  try {
-    return JSON.parse(window.localStorage.getItem(racesStorageKey) || '[]') as LocalRace[];
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalRaces(races: LocalRace[]) {
-  window.localStorage.setItem(racesStorageKey, JSON.stringify(races));
-}
 
 function createTestDriveState(track: TrackConfig): TestDriveState {
   return {
@@ -98,18 +77,11 @@ function createTestDriveState(track: TrackConfig): TestDriveState {
 }
 
 export function InstructorDashboard() {
-  const [races, setRaces] = useState<LocalRace[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [course, setCourse] = useState<TrackConfig | null>(null);
   const [courseName, setCourseName] = useState('');
   const [testDrive, setTestDrive] = useState<TestDriveState | null>(null);
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      setRaces(readLocalRaces());
-    });
-  }, []);
 
   async function startRace() {
     if (!course) {
@@ -132,9 +104,7 @@ export function InstructorDashboard() {
         return;
       }
 
-      const nextRaces = [{ code: payload.code, createdAt: new Date().toISOString() }, ...races].slice(0, 12);
-      writeLocalRaces(nextRaces);
-      window.location.href = `/instructor/race/${payload.code}`;
+      window.location.href = `/tools/vector-racer/instructor/race/${payload.code}`;
     } catch {
       setMessage('Unable to reach the race server. Check that the dev server is running.');
     } finally {
@@ -477,20 +447,6 @@ export function InstructorDashboard() {
           </button>
         </div>
         {message ? <div className="message error">{message}</div> : null}
-      </section>
-
-      <section className="band stack">
-        <h2>Recent races on this device</h2>
-        <ul className="leaderboard">
-          {races.map((race) => (
-            <li key={race.code}>
-              <Trophy size={15} />
-              <Link href={`/instructor/race/${race.code}`}>{race.code}</Link>
-              <span className="muted">{new Date(race.createdAt).toLocaleDateString()}</span>
-            </li>
-          ))}
-          {!races.length ? <p className="muted">No races started on this device yet.</p> : null}
-        </ul>
       </section>
     </div>
   );

@@ -264,6 +264,65 @@ function isPointInLatticeRegion(points: Point[], point: Point) {
   return false;
 }
 
+function distanceToSegment(point: Point, a: Point, b: Point) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - a.x, point.y - a.y);
+
+  const projection = Math.max(
+    0,
+    Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared)
+  );
+  return Math.hypot(point.x - (a.x + projection * dx), point.y - (a.y + projection * dy));
+}
+
+function isPointNearPolygon(point: Point, polygon: Point[], tolerance: number) {
+  if (pointInPolygon(point, polygon)) return true;
+  return polygon.some((vertex, index) =>
+    distanceToSegment(point, vertex, polygon[(index + 1) % polygon.length]) <= tolerance
+  );
+}
+
+function isPointNearLatticeRegion(points: Point[], point: Point, tolerance: number) {
+  if (isPointInLatticeRegion(points, point)) return true;
+
+  const selected = new Set(points.map(pointKey));
+  const nearestX = Math.round(point.x);
+  const nearestY = Math.round(point.y);
+  for (let x = nearestX - 1; x <= nearestX + 1; x += 1) {
+    for (let y = nearestY - 1; y <= nearestY + 1; y += 1) {
+      if (!selected.has(`${x},${y}`)) continue;
+      const diamond = [
+        { x: x - 0.5, y },
+        { x, y: y + 0.5 },
+        { x: x + 0.5, y },
+        { x, y: y - 0.5 }
+      ];
+      if (isPointNearPolygon(point, diamond, tolerance)) return true;
+    }
+  }
+
+  const cellX = Math.floor(point.x);
+  const cellY = Math.floor(point.y);
+  for (let x = cellX - 1; x <= cellX + 1; x += 1) {
+    for (let y = cellY - 1; y <= cellY + 1; y += 1) {
+      const polygon = getCenterFillPolygon(selected, x, y);
+      if (polygon && isPointNearPolygon(point, polygon, tolerance)) return true;
+    }
+  }
+  return false;
+}
+
+export const TRACK_EDGE_TOLERANCE = 1 / 16;
+
+function isPointOnTrackWithTolerance(track: TrackConfig, point: Point) {
+  return (
+    isPointNearLatticeRegion(track.points, point, TRACK_EDGE_TOLERANCE) &&
+    !(track.obstacles || []).some((obstacle) => isPointInLatticeRegion(obstacle.points, point))
+  );
+}
+
 export function isPointOnTrack(track: TrackConfig, point: Point) {
   return (
     isPointInLatticeRegion(track.points, point) &&
@@ -276,7 +335,7 @@ export function segmentStaysOnTrack(track: TrackConfig, from: Point, to: Point) 
   for (let i = 0; i <= steps; i += 1) {
     const t = i / steps;
     if (
-      !isPointOnTrack(track, {
+      !isPointOnTrackWithTolerance(track, {
         x: from.x + (to.x - from.x) * t,
         y: from.y + (to.y - from.y) * t
       })
@@ -295,7 +354,7 @@ export function firstTrackExit(track: TrackConfig, from: Point, to: Point) {
       x: from.x + (to.x - from.x) * t,
       y: from.y + (to.y - from.y) * t
     };
-    if (!isPointOnTrack(track, point)) return point;
+    if (!isPointOnTrackWithTolerance(track, point)) return point;
   }
   return to;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { LatticeRegion } from '@/components/LatticeRegion';
 import { HillOverlay } from '@/components/HillOverlay';
 import {
@@ -36,6 +36,9 @@ export function TrackBoard({
   showMoveOptions = false,
   previewAcceleration
 }: TrackBoardProps) {
+  const markerPrefix = useId().replaceAll(':', '');
+  const currentVelocityMarkerId = `${markerPrefix}-current-velocity-arrow`;
+  const newVelocityMarkerId = `${markerPrefix}-new-velocity-arrow`;
   const seenMoveIds = useRef(new Set<string>());
   const movesInitialized = useRef(false);
   const animationTimeouts = useRef<number[]>([]);
@@ -110,6 +113,10 @@ export function TrackBoard({
           }
         )
       : null;
+  const currentVelocityIsZero =
+    currentVelocityMove?.position.x === activePosition?.x && currentVelocityMove?.position.y === activePosition?.y;
+  const previewVelocityIsZero =
+    previewMove?.position.x === activePosition?.x && previewMove?.position.y === activePosition?.y;
   const finishRegionPoints = useMemo(
     () => latticeSegmentPoints(track.finish[0], track.finish[1]),
     [track.finish]
@@ -143,6 +150,32 @@ export function TrackBoard({
   return (
     <div className="track-wrap">
       <svg className="track-svg" viewBox={`0 0 ${geometry.width} ${geometry.height}`} role="img">
+        <defs>
+          <marker
+            id={currentVelocityMarkerId}
+            markerHeight="0.38"
+            markerUnits="userSpaceOnUse"
+            markerWidth="0.38"
+            orient="auto"
+            refX="0.35"
+            refY="0.18"
+            viewBox="0 0 0.36 0.36"
+          >
+            <path d="M 0 0 L 0.36 0.18 L 0 0.36 Z" fill="#334155" />
+          </marker>
+          <marker
+            id={newVelocityMarkerId}
+            markerHeight="0.42"
+            markerUnits="userSpaceOnUse"
+            markerWidth="0.42"
+            orient="auto"
+            refX="0.35"
+            refY="0.18"
+            viewBox="0 0 0.36 0.36"
+          >
+            <path d="M 0 0 L 0.36 0.18 L 0 0.36 Z" fill={active?.color || '#0f766e'} />
+          </marker>
+        </defs>
         <rect width={geometry.width} height={geometry.height} fill="#ffffff" />
 
         <LatticeRegion points={track.points} fill="#d5d8dc" mapPoint={geometry.map} />
@@ -233,18 +266,21 @@ export function TrackBoard({
               y1={geometry.map(activePosition!).y}
               x2={geometry.map(currentVelocityMove.position).x}
               y2={geometry.map(currentVelocityMove.position).y}
+              markerEnd={currentVelocityIsZero ? undefined : `url(#${currentVelocityMarkerId})`}
               stroke="#334155"
               strokeLinecap="round"
               strokeWidth="0.12"
             />
-            <circle
-              cx={geometry.map(currentVelocityMove.position).x}
-              cy={geometry.map(currentVelocityMove.position).y}
-              r="0.18"
-              fill="white"
-              stroke="#334155"
-              strokeWidth="0.08"
-            />
+            {currentVelocityIsZero ? (
+              <circle
+                cx={geometry.map(currentVelocityMove.position).x}
+                cy={geometry.map(currentVelocityMove.position).y}
+                r="0.18"
+                fill="white"
+                stroke="#334155"
+                strokeWidth="0.08"
+              />
+            ) : null}
           </g>
         ) : null}
 
@@ -269,17 +305,20 @@ export function TrackBoard({
               y1={geometry.map({ x: active.position_x, y: active.position_y }).y}
               x2={geometry.map(previewMove.position).x}
               y2={geometry.map(previewMove.position).y}
+              markerEnd={previewVelocityIsZero ? undefined : `url(#${newVelocityMarkerId})`}
               stroke={active.color}
               strokeDasharray="0.16 0.12"
               strokeLinecap="round"
               strokeWidth="0.15"
             />
-            <circle
-              cx={geometry.map(previewMove.position).x}
-              cy={geometry.map(previewMove.position).y}
-              r="0.25"
-              fill={active.color}
-            />
+            {previewVelocityIsZero ? (
+              <circle
+                cx={geometry.map(previewMove.position).x}
+                cy={geometry.map(previewMove.position).y}
+                r="0.2"
+                fill={active.color}
+              />
+            ) : null}
           </g>
         ) : null}
 

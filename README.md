@@ -49,6 +49,6 @@ The board infers its coordinate range from the listed track points. In-bounds po
 
 Course coloring is implemented by the reusable `LatticeRegion` component. Finish and hill regions use the same diamond and center-fill rules with distinct colors; hill points also render directional arrowheads.
 
-Movement crashes are determined from the complete line segment between the old and new positions. The server samples the segment against the same diamond-and-center-fill course region. A move crashes if any sampled point leaves the region, even when both endpoints are in bounds. The car is returned to the track point nearest its first out-of-bounds position with zero velocity. Recovery takes `max(0, floor(speed) - 1)` resolved rounds, using the impact velocity.
+Movement crashes are determined from the complete line segment between the old and new positions. The server samples the segment against the same diamond-and-center-fill course region, with a `1/16` grid-spacing tolerance along the track edge. A move crashes if any sampled point goes beyond that tolerance, even when both endpoints are in bounds. Obstacles do not receive the edge tolerance. The car is returned to the track point nearest its first out-of-bounds position with zero velocity. Recovery takes `max(0, floor(speed) - 1)` resolved rounds, using the impact velocity.
 
 The current MVP uses uploaded lattice tracks and server-side move validation. It is structured for Vercel deployment with Supabase as the database and realtime backend.

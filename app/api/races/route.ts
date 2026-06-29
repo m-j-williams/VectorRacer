@@ -33,9 +33,9 @@ export async function POST(request: Request) {
           paused_turn_seconds: 20,
           started_at: null,
           turn_resolving: false,
-          show_current_velocity: true,
-          show_potential_endpoints: true,
-          show_chosen_velocity: true
+          show_current_velocity: false,
+          show_potential_endpoints: false,
+          show_chosen_velocity: false
         })
         .select('code')
         .single();

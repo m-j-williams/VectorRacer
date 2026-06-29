@@ -1,7 +1,5 @@
-import { InstructorDashboard } from '@/components/InstructorDashboard';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-
-export default function InstructorPage() {
-  return <InstructorDashboard />;
+export default function LegacyInstructorPage() {
+  redirect('/tools/vector-racer/instructor');
 }

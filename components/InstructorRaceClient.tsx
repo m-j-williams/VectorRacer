@@ -351,51 +351,6 @@ export function InstructorRaceClient({ initialRace }: { initialRace: RaceState }
 
       <div className="grid-2 race-layout">
         <section className="stack">
-          <section className="band race-controls">
-            <div>
-              <span className="label">Turn timer</span>
-              <div className="row timer-control">
-                <Clock3 size={18} />
-                <input
-                  aria-label="Turn duration in seconds"
-                  className="input"
-                  max={300}
-                  min={5}
-                  onChange={(event) => setDuration(event.target.value)}
-                  type="number"
-                  value={duration}
-                />
-                <span className="muted">seconds</span>
-                <button
-                  className="button secondary"
-                  disabled={busy || Number(duration) === race.turn_duration_seconds}
-                  onClick={() => controlRace('set-duration')}
-                  type="button"
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
-            <span className="muted race-control-note">
-              {race.status === 'running' ? 'Changing the time restarts the current countdown.' : 'Used when play resumes.'}
-            </span>
-          </section>
-          <section className="band stack">
-            <span className="label">Student visual aids</span>
-            <div className="visual-aid-list">
-              {visualAidOptions.map(({ field, label }) => (
-                <label className="toggle-row" key={field}>
-                  <input
-                    checked={race[field]}
-                    disabled={busy || race.status === 'finished'}
-                    onChange={(event) => setVisualAid(field, event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </section>
           <TurnStatus
             turnNumber={race.turn_number}
             deadline={race.turn_deadline}
@@ -440,12 +395,62 @@ export function InstructorRaceClient({ initialRace }: { initialRace: RaceState }
                 : undefined
             }
           />
+          <section className="band stack race-settings">
+            <h2>Race settings</h2>
+            <div className="race-settings-grid">
+              <div className="race-setting-group">
+                <span className="label">Turn timer</span>
+                <div className="row timer-control">
+                  <Clock3 size={18} />
+                  <input
+                    aria-label="Turn duration in seconds"
+                    className="input"
+                    max={300}
+                    min={5}
+                    onChange={(event) => setDuration(event.target.value)}
+                    type="number"
+                    value={duration}
+                  />
+                  <span className="muted">seconds</span>
+                  <button
+                    className="button secondary"
+                    disabled={busy || Number(duration) === race.turn_duration_seconds}
+                    onClick={() => controlRace('set-duration')}
+                    type="button"
+                  >
+                    Apply
+                  </button>
+                </div>
+                <span className="muted race-control-note">
+                  {race.status === 'running'
+                    ? 'Changing the time restarts the current countdown.'
+                    : 'Used when play resumes.'}
+                </span>
+              </div>
+              <div className="race-setting-group">
+                <span className="label">Student visual aids</span>
+                <div className="visual-aid-list">
+                  {visualAidOptions.map(({ field, label }) => (
+                    <label className="toggle-row" key={field}>
+                      <input
+                        checked={race[field]}
+                        disabled={busy || race.status === 'finished'}
+                        onChange={(event) => setVisualAid(field, event.target.checked)}
+                        type="checkbox"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
         </section>
         <aside className="stack">
           <section className="band stack">
             <span className="label">Student code</span>
             <span className="code">{race.code}</span>
-            <p className="muted">Students join at /race/{race.code}</p>
+            <p className="muted">Students join at /tools/vector-racer/race/{race.code}</p>
             {!driverParticipant && race.status !== 'finished' ? (
               <form className="stack" onSubmit={joinAsDriver}>
                 <div>
