@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import northernLandRings from '@/data/northern-land-rings.json';
+import snowIceData from '@/data/snow-ice-frames.json';
 
 type PlanetName = 'Mercury' | 'Venus' | 'Earth' | 'Mars' | 'Jupiter' | 'Saturn';
 type BodyName = PlanetName | 'Moon';
@@ -10,6 +11,14 @@ type Orientation = 'calendar' | 'earth-top' | 'earth-bottom' | 'location-top';
 type CenterMode = 'sun' | 'earth';
 type SkyOverlay = 'off' | 'daylight' | 'current';
 type GeoCoordinate = [longitude: number, latitude: number];
+type SnowIceData = {
+  frames: string[];
+};
+type SnowIceLayer = {
+  firstPath: string;
+  secondPath: string;
+  blend: number;
+};
 
 type OrbitalElements = {
   name: PlanetName;
@@ -85,6 +94,7 @@ type ViewSettings = {
   showLabels: boolean;
   showOrbits: boolean;
   showZodiac: boolean;
+  showNightShadow: boolean;
   skyOverlay: SkyOverlay;
   visibleBodies: Record<BodyName, boolean>;
   latitude: number | null;
@@ -98,6 +108,7 @@ const DEFAULT_SETTINGS: ViewSettings = {
   showLabels: true,
   showOrbits: true,
   showZodiac: true,
+  showNightShadow: true,
   skyOverlay: 'daylight',
   visibleBodies: {
     Mercury: true,
@@ -239,6 +250,7 @@ function readSettings(search: string): ViewSettings {
     showLabels: params.get('labels') !== '0',
     showOrbits: params.get('orbits') !== '0',
     showZodiac: params.get('zodiac') !== '0',
+    showNightShadow: params.get('shadow') !== '0',
     skyOverlay,
     visibleBodies,
     latitude,
@@ -267,6 +279,9 @@ function writeSettings(settings: ViewSettings) {
 
   if (settings.showZodiac) url.searchParams.delete('zodiac');
   else url.searchParams.set('zodiac', '0');
+
+  if (settings.showNightShadow) url.searchParams.delete('shadow');
+  else url.searchParams.set('shadow', '0');
 
   url.searchParams.delete('daylight');
   if ((settings.skyOverlay ?? 'daylight') === 'daylight') url.searchParams.delete('sky');
@@ -429,9 +444,10 @@ function projectObserverZenith(latitude: number, longitude: number, date: Date, 
 
 // Natural Earth 1:110m country polygons that intersect the visible northern hemisphere.
 const NORTHERN_LAND_RINGS = northernLandRings as GeoCoordinate[][];
+const SNOW_ICE = snowIceData as SnowIceData;
 
-function projectNorthernLand() {
-  return NORTHERN_LAND_RINGS.map((ring) =>
+function projectGeoRings(rings: GeoCoordinate[][]) {
+  return rings.map((ring) =>
     `${ring
       .map(([longitude, latitude], index) => {
         // Orthographic projection above the equator; southern points continue outside
@@ -449,7 +465,28 @@ function projectNorthernLand() {
   ).join(' ');
 }
 
-const EARTH_LAND_PATH = projectNorthernLand();
+function snowIceLayer(date: Date): SnowIceLayer {
+  const year = date.getUTCFullYear();
+  const yearStart = Date.UTC(year, 0, 1);
+  const nextYearStart = Date.UTC(year + 1, 0, 1);
+  const yearProgress = (date.getTime() - yearStart) / (nextYearStart - yearStart);
+  const framePosition = yearProgress * SNOW_ICE.frames.length;
+  const firstFrameIndex = Math.floor(framePosition) % SNOW_ICE.frames.length;
+  const secondFrameIndex = (firstFrameIndex + 1) % SNOW_ICE.frames.length;
+  const blend = framePosition - Math.floor(framePosition);
+
+  return {
+    firstPath: SNOW_ICE.frames[firstFrameIndex],
+    secondPath: SNOW_ICE.frames[secondFrameIndex],
+    blend
+  };
+}
+
+function snowIceOpacity(weight: number) {
+  return weight <= 0 ? 0 : 1 - Math.pow(0.03, weight);
+}
+
+const EARTH_LAND_PATH = projectGeoRings(NORTHERN_LAND_RINGS);
 
 // JPL approximate Keplerian elements and rates for 1800–2050.
 const PLANETS: OrbitalElements[] = [
@@ -667,13 +704,17 @@ function Planet({
   showLabel,
   sunPosition,
   solarDeclination,
-  earthSurfaceRotation
+  earthSurfaceRotation,
+  snowIce,
+  showNightShadow
 }: {
   planet: PlanetPosition;
   showLabel: boolean;
   sunPosition: { x: number; y: number };
   solarDeclination: number;
   earthSurfaceRotation: number;
+  snowIce: SnowIceLayer;
+  showNightShadow: boolean;
 }) {
   const labelOnLeft = planet.x < CENTER || planet.x > 550;
   const labelX = planet.x + (labelOnLeft ? -11 : 11);
@@ -684,10 +725,10 @@ function Planet({
     terminatorRadius < 0.001
       ? `L ${planet.x} ${planet.y + planet.size}`
       : `A ${terminatorRadius} ${planet.size} 0 0 ${solarDeclination < 0 ? 1 : 0} ${planet.x} ${planet.y + planet.size}`;
-  const polarDaylightPath = [
+  const polarNightPath = [
     `M ${planet.x} ${planet.y - planet.size}`,
     terminatorSegment,
-    `A ${planet.size} ${planet.size} 0 0 0 ${planet.x} ${planet.y - planet.size}`,
+    `A ${planet.size} ${planet.size} 0 0 1 ${planet.x} ${planet.y - planet.size}`,
     'Z'
   ].join(' ');
 
@@ -706,26 +747,45 @@ function Planet({
       ) : null}
       {planet.name === 'Earth' ? (
         <g>
-          <circle data-body="Earth" className="earth-dark" cx={planet.x} cy={planet.y} r={planet.size} />
-          <path
-            className="earth-lit"
-            d={polarDaylightPath}
-            transform={`rotate(${lightAngle} ${planet.x} ${planet.y})`}
-          />
+          <circle data-body="Earth" className="earth-lit" cx={planet.x} cy={planet.y} r={planet.size} />
           <g
             clipPath="url(#earth-surface-clip)"
             transform={`translate(${planet.x} ${planet.y}) scale(${planet.size})`}
           >
-            <path
-              aria-label="Northern Hemisphere continents"
-              className="earth-land"
-              d={EARTH_LAND_PATH}
-              fill="#214b2d"
-              fillOpacity="0.92"
-              fillRule="evenodd"
-              transform={`rotate(${-earthSurfaceRotation / DEG})`}
-            />
+            <g transform={`rotate(${-earthSurfaceRotation / DEG})`}>
+              <path
+                aria-label="Northern Hemisphere continents"
+                className="earth-land"
+                d={EARTH_LAND_PATH}
+                fill="#214b2d"
+                fillOpacity="0.92"
+                fillRule="evenodd"
+              />
+              <path
+                aria-label="Seasonal Northern Hemisphere snow and ice"
+                d={snowIce.firstPath}
+                fill="#d8edf1"
+                fillOpacity={snowIceOpacity(1 - snowIce.blend)}
+                fillRule="evenodd"
+              />
+              <path
+                aria-label="Seasonal Northern Hemisphere snow and ice"
+                d={snowIce.secondPath}
+                fill="#d8edf1"
+                fillOpacity={snowIceOpacity(snowIce.blend)}
+                fillRule="evenodd"
+              />
+            </g>
           </g>
+          {showNightShadow ? (
+            <path
+              aria-label="Earth night shadow"
+              d={polarNightPath}
+              fill="#02070c"
+              fillOpacity="0.78"
+              transform={`rotate(${lightAngle} ${planet.x} ${planet.y})`}
+            />
+          ) : null}
           <circle className="earth-outline" cx={planet.x} cy={planet.y} r={planet.size} />
         </g>
       ) : (
@@ -1044,6 +1104,12 @@ export function SolarSystemLive() {
   const viewRotation = rotationAnimating ? animatedRotation : targetRotation;
   const sceneRotation = viewRotation + CALENDAR_ROTATION;
   const earthSurfaceRotation = now ? greenwichSiderealRotation(now) + sceneRotation : 0;
+  const snowIce = useMemo(
+    () => now
+      ? snowIceLayer(now)
+      : { firstPath: '', secondPath: '', blend: 0 },
+    [now]
+  );
 
   function setOrientation(orientation: Orientation) {
     if (!naturalEarth || orientation === settings.orientation) return;
@@ -1537,6 +1603,19 @@ export function SolarSystemLive() {
               />
               Zodiac map
             </label>
+            <label className="solar-toggle">
+              <input
+                checked={settings.showNightShadow}
+                onChange={(event) =>
+                  updateSettings((current) => ({
+                    ...current,
+                    showNightShadow: event.target.checked
+                  }))
+                }
+                type="checkbox"
+              />
+              Night shadow
+            </label>
             <span className="solar-overlay-heading">Sky overlay</span>
             {([
               ['off', 'Off'],
@@ -1656,6 +1735,9 @@ export function SolarSystemLive() {
             <p>
               Earth is viewed from above the North Pole. Its land layer uses a polar
               projection, with the equator forming the outside edge of the globe.
+              A unified snow-and-ice layer crossfades through 46 vector snapshots sampled
+              every eight days from NOAA’s 2023 Northern Hemisphere analysis, including
+              Greenland’s observed coverage.
             </p>
             <a
               className="solar-source"
@@ -1688,6 +1770,14 @@ export function SolarSystemLive() {
               target="_blank"
             >
               Land shapes: Natural Earth ↗
+            </a>
+            <a
+              className="solar-source"
+              href="https://nsidc.org/data/g02156"
+              rel="noreferrer"
+              target="_blank"
+            >
+              Snow and ice coverage: NOAA IMS ↗
             </a>
           </section>
         </aside>
@@ -1840,6 +1930,8 @@ export function SolarSystemLive() {
               solarDeclination={solarDeclination}
               sunPosition={sunPosition}
               earthSurfaceRotation={earthSurfaceRotation}
+              snowIce={snowIce}
+              showNightShadow={settings.showNightShadow}
             />
           ))}
 
