@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Menu, X } from 'lucide-react';
+import northernLandRings from '@/data/northern-land-rings.json';
 
 type PlanetName = 'Mercury' | 'Venus' | 'Earth' | 'Mars' | 'Jupiter' | 'Saturn';
 type BodyName = PlanetName | 'Moon';
 type Orientation = 'calendar' | 'earth-top' | 'earth-bottom' | 'location-top';
 type CenterMode = 'sun' | 'earth';
 type SkyOverlay = 'off' | 'daylight' | 'current';
+type GeoCoordinate = [longitude: number, latitude: number];
 
 type OrbitalElements = {
   name: PlanetName;
@@ -47,7 +49,9 @@ const MONTH_LABEL_ROTATION = -15;
 const GEOCENTRIC_RADIUS = 270;
 const GEOCENTRIC_MAX_AU = 11;
 const GEOCENTRIC_LOG_STRENGTH = 5;
+const HELIOCENTRIC_RADIUS_PER_AU = GEOCENTRIC_RADIUS / GEOCENTRIC_MAX_AU;
 const EARTH_CENTERED_MOON_RADIUS = 48;
+const EARTH_MAX_COMPRESSED_SIZE = 42;
 const DAYLIGHT_WEDGE_RADIUS = 375;
 const HOUR_MS = 3600000;
 const DAY_MS = 86400000;
@@ -63,6 +67,14 @@ const EARTH_CENTERED_PLANET_SIZES: Record<PlanetName, number> = {
   Mars: 2.5,
   Jupiter: 4.5,
   Saturn: 4
+};
+const HELIOCENTRIC_SCALE_PLANET_SIZES: Record<PlanetName, number> = {
+  Mercury: 0.8,
+  Venus: 1.1,
+  Earth: 1.1,
+  Mars: 0.9,
+  Jupiter: 2.2,
+  Saturn: 2
 };
 const BODY_NAMES: BodyName[] = ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Jupiter', 'Saturn'];
 
@@ -374,15 +386,9 @@ function radialWedgePath(
 }
 
 function projectEarthLocation(latitude: number, longitude: number, date: Date, rotation: number) {
-  const julianDate = date.getTime() / 86400000 + 2440587.5;
-  const centuries = (julianDate - 2451545) / 36525;
-  const greenwichSiderealDegrees =
-    280.46061837 +
-    360.98564736629 * (julianDate - 2451545) +
-    0.000387933 * centuries * centuries -
-    (centuries * centuries * centuries) / 38710000;
+  const greenwichSiderealAngle = greenwichSiderealRotation(date);
   const latitudeRadians = latitude * DEG;
-  const localSiderealAngle = (greenwichSiderealDegrees + longitude) * DEG;
+  const localSiderealAngle = greenwichSiderealAngle + longitude * DEG;
   const polarRadius = Math.cos(latitudeRadians);
   const polarX = polarRadius * Math.cos(localSiderealAngle);
   const polarY = polarRadius * Math.sin(localSiderealAngle);
@@ -394,7 +400,7 @@ function projectEarthLocation(latitude: number, longitude: number, date: Date, r
   };
 }
 
-function projectObserverZenith(latitude: number, longitude: number, date: Date, rotation: number) {
+function greenwichSiderealRotation(date: Date) {
   const julianDate = date.getTime() / 86400000 + 2440587.5;
   const centuries = (julianDate - 2451545) / 36525;
   const greenwichSiderealDegrees =
@@ -402,8 +408,13 @@ function projectObserverZenith(latitude: number, longitude: number, date: Date, 
     360.98564736629 * (julianDate - 2451545) +
     0.000387933 * centuries * centuries -
     (centuries * centuries * centuries) / 38710000;
+
+  return greenwichSiderealDegrees * DEG;
+}
+
+function projectObserverZenith(latitude: number, longitude: number, date: Date, rotation: number) {
   const latitudeRadians = latitude * DEG;
-  const localSiderealAngle = (greenwichSiderealDegrees + longitude) * DEG;
+  const localSiderealAngle = greenwichSiderealRotation(date) + longitude * DEG;
   const equatorialX = Math.cos(latitudeRadians) * Math.cos(localSiderealAngle);
   const equatorialY = Math.cos(latitudeRadians) * Math.sin(localSiderealAngle);
   const equatorialZ = Math.sin(latitudeRadians);
@@ -415,6 +426,30 @@ function projectObserverZenith(latitude: number, longitude: number, date: Date, 
 
   return { x: rotated.x, y: rotated.y, z: eclipticZ };
 }
+
+// Natural Earth 1:110m country polygons that intersect the visible northern hemisphere.
+const NORTHERN_LAND_RINGS = northernLandRings as GeoCoordinate[][];
+
+function projectNorthernLand() {
+  return NORTHERN_LAND_RINGS.map((ring) =>
+    `${ring
+      .map(([longitude, latitude], index) => {
+        // Orthographic projection above the equator; southern points continue outside
+        // the globe so the SVG clip cleanly cuts polygons at the equator instead of
+        // folding the hidden hemisphere back into view.
+        const radius = latitude >= 0
+          ? Math.cos(latitude * DEG)
+          : 1 - Math.sin(latitude * DEG);
+        const angle = longitude * DEG;
+        const x = radius * Math.cos(angle);
+        const y = -radius * Math.sin(angle);
+        return `${index === 0 ? 'M' : 'L'}${x.toFixed(4)} ${y.toFixed(4)}`;
+      })
+      .join(' ')} Z`
+  ).join(' ');
+}
+
+const EARTH_LAND_PATH = projectNorthernLand();
 
 // JPL approximate Keplerian elements and rates for 1800–2050.
 const PLANETS: OrbitalElements[] = [
@@ -631,12 +666,14 @@ function Planet({
   planet,
   showLabel,
   sunPosition,
-  solarDeclination
+  solarDeclination,
+  earthSurfaceRotation
 }: {
   planet: PlanetPosition;
   showLabel: boolean;
   sunPosition: { x: number; y: number };
   solarDeclination: number;
+  earthSurfaceRotation: number;
 }) {
   const labelOnLeft = planet.x < CENTER || planet.x > 550;
   const labelX = planet.x + (labelOnLeft ? -11 : 11);
@@ -675,6 +712,20 @@ function Planet({
             d={polarDaylightPath}
             transform={`rotate(${lightAngle} ${planet.x} ${planet.y})`}
           />
+          <g
+            clipPath="url(#earth-surface-clip)"
+            transform={`translate(${planet.x} ${planet.y}) scale(${planet.size})`}
+          >
+            <path
+              aria-label="Northern Hemisphere continents"
+              className="earth-land"
+              d={EARTH_LAND_PATH}
+              fill="#214b2d"
+              fillOpacity="0.92"
+              fillRule="evenodd"
+              transform={`rotate(${-earthSurfaceRotation / DEG})`}
+            />
+          </g>
           <circle className="earth-outline" cx={planet.x} cy={planet.y} r={planet.size} />
         </g>
       ) : (
@@ -992,6 +1043,7 @@ export function SolarSystemLive() {
     : 0;
   const viewRotation = rotationAnimating ? animatedRotation : targetRotation;
   const sceneRotation = viewRotation + CALENDAR_ROTATION;
+  const earthSurfaceRotation = now ? greenwichSiderealRotation(now) + sceneRotation : 0;
 
   function setOrientation(orientation: Orientation) {
     if (!naturalEarth || orientation === settings.orientation) return;
@@ -1053,13 +1105,19 @@ export function SolarSystemLive() {
     sunEarthCentered,
     centerProgress
   );
-  const sunRadius = mix(15, 8, centerProgress);
+  const heliocentricSunRadius = mix(15, 4, settings.radialSpread ?? 0);
+  const sunRadius = mix(heliocentricSunRadius, 8, centerProgress);
 
   const planets = naturalPlanets.map((planet) => {
     const angle = planet.angle + sceneRotation;
+    const sunCenteredRadius = mix(
+      planet.displayRadius,
+      planet.distance * HELIOCENTRIC_RADIUS_PER_AU,
+      settings.radialSpread ?? 0
+    );
     const sunCentered = {
-      x: CENTER + Math.cos(angle) * planet.displayRadius,
-      y: CENTER - Math.sin(angle) * planet.displayRadius
+      x: CENTER + Math.cos(angle) * sunCenteredRadius,
+      y: CENTER - Math.sin(angle) * sunCenteredRadius
     };
     const earthCentered = geocentricPoint(
       planet.heliocentricX - earthRaw.x,
@@ -1068,11 +1126,23 @@ export function SolarSystemLive() {
       settings.radialSpread ?? 0
     );
     const point = mixPoint(sunCentered, earthCentered, centerProgress);
+    const earthCenteredSize = planet.name === 'Earth'
+      ? mix(
+          EARTH_CENTERED_PLANET_SIZES.Earth,
+          EARTH_MAX_COMPRESSED_SIZE,
+          settings.radialSpread ?? 0
+        )
+      : EARTH_CENTERED_PLANET_SIZES[planet.name];
+    const heliocentricSize = mix(
+      planet.size,
+      HELIOCENTRIC_SCALE_PLANET_SIZES[planet.name],
+      settings.radialSpread ?? 0
+    );
 
     return {
       ...planet,
       angle,
-      size: mix(planet.size, EARTH_CENTERED_PLANET_SIZES[planet.name], centerProgress),
+      size: mix(heliocentricSize, earthCenteredSize, centerProgress),
       x: point.x,
       y: point.y
     };
@@ -1082,9 +1152,14 @@ export function SolarSystemLive() {
     const samples = orbitSamples[planet.name] || [];
     const points = samples.map((sample) => {
       const angle = Math.atan2(sample.y, sample.x) + sceneRotation;
+      const sunCenteredRadius = mix(
+        planet.displayRadius,
+        Math.hypot(sample.x, sample.y) * HELIOCENTRIC_RADIUS_PER_AU,
+        settings.radialSpread ?? 0
+      );
       const sunCentered = {
-        x: CENTER + Math.cos(angle) * planet.displayRadius,
-        y: CENTER - Math.sin(angle) * planet.displayRadius
+        x: CENTER + Math.cos(angle) * sunCenteredRadius,
+        y: CENTER - Math.sin(angle) * sunCenteredRadius
       };
       const earthCentered = geocentricPoint(
         sample.x - earthRaw.x,
@@ -1106,13 +1181,28 @@ export function SolarSystemLive() {
   const moonAngle = ((218.316 + 13.176396 * daysSinceJ2000) % 360) * DEG + sceneRotation;
   const naturalEarthDisplay = naturalEarth
     ? {
-        x: CENTER + Math.cos(naturalEarth.angle + sceneRotation) * naturalEarth.displayRadius,
-        y: CENTER - Math.sin(naturalEarth.angle + sceneRotation) * naturalEarth.displayRadius
+        x:
+          CENTER +
+          Math.cos(naturalEarth.angle + sceneRotation) *
+            mix(
+              naturalEarth.displayRadius,
+              naturalEarth.distance * HELIOCENTRIC_RADIUS_PER_AU,
+              settings.radialSpread ?? 0
+            ),
+        y:
+          CENTER -
+          Math.sin(naturalEarth.angle + sceneRotation) *
+            mix(
+              naturalEarth.displayRadius,
+              naturalEarth.distance * HELIOCENTRIC_RADIUS_PER_AU,
+              settings.radialSpread ?? 0
+            )
       }
     : { x: CENTER, y: CENTER };
+  const moonSunCenteredRadius = mix(18, 3.5, settings.radialSpread ?? 0);
   const moonSunCentered = {
-    x: naturalEarthDisplay.x + Math.cos(moonAngle) * 18,
-    y: naturalEarthDisplay.y - Math.sin(moonAngle) * 18
+    x: naturalEarthDisplay.x + Math.cos(moonAngle) * moonSunCenteredRadius,
+    y: naturalEarthDisplay.y - Math.sin(moonAngle) * moonSunCenteredRadius
   };
   const earthCenteredMoonRadius = mix(
     EARTH_CENTERED_MOON_RADIUS,
@@ -1127,14 +1217,23 @@ export function SolarSystemLive() {
   const moonX = moonPosition.x;
   const moonY = moonPosition.y;
   const moonLightAngle = Math.atan2(sunPosition.y - moonY, sunPosition.x - moonX) / DEG;
-  const moonRadius = mix(3.6, 8, centerProgress);
-  const moonOrbitRadius = mix(18, earthCenteredMoonRadius, centerProgress);
+  const heliocentricMoonRadius = mix(3.6, 0.7, settings.radialSpread ?? 0);
+  const moonRadius = mix(heliocentricMoonRadius, 8, centerProgress);
+  const moonOrbitRadius = mix(moonSunCenteredRadius, earthCenteredMoonRadius, centerProgress);
   const projectedLocation =
     now && settings.latitude !== null && settings.longitude !== null
       ? projectEarthLocation(settings.latitude, settings.longitude, now, sceneRotation)
       : null;
   const locationX = earth && projectedLocation ? earth.x + projectedLocation.x * earth.size : 0;
   const locationY = earth && projectedLocation ? earth.y - projectedLocation.y * earth.size : 0;
+  const locationMarkerReferenceSize = mix(
+    PLANETS.find((planet) => planet.name === 'Earth')?.size ?? 7,
+    EARTH_CENTERED_PLANET_SIZES.Earth,
+    centerProgress
+  );
+  const locationMarkerScale = earth
+    ? Math.max(0.35, earth.size / locationMarkerReferenceSize)
+    : 1;
   const alignmentAngle = naturalEarth
     ? naturalEarth.angle + sceneRotation + Math.PI
     : 0;
@@ -1322,29 +1421,45 @@ export function SolarSystemLive() {
               />
               Earth centered
             </label>
-            <label className={`solar-range-control${settings.centerMode === 'sun' ? ' disabled' : ''}`}>
+            <label className="solar-range-control">
               <span>
                 Radial compression
-                <output>{Math.round((settings.radialSpread ?? 0) * 100)}%</output>
+                <output>
+                  {Math.round(
+                    (settings.centerMode === 'sun'
+                      ? 1 - (settings.radialSpread ?? 0)
+                      : settings.radialSpread ?? 0) * 100
+                  )}%
+                </output>
               </span>
               <input
-                aria-label="Earth-centered radial compression"
-                disabled={settings.centerMode === 'sun'}
+                aria-label={
+                  settings.centerMode === 'sun'
+                    ? 'Heliocentric radial compression'
+                    : 'Earth-centered radial compression'
+                }
                 max="100"
                 min="0"
                 onChange={(event) =>
                   updateSettings((current) => ({
                     ...current,
-                    radialSpread: Number(event.target.value) / 100
+                    radialSpread:
+                      current.centerMode === 'sun'
+                        ? 1 - Number(event.target.value) / 100
+                        : Number(event.target.value) / 100
                   }))
                 }
                 step="1"
                 type="range"
-                value={Math.round((settings.radialSpread ?? 0) * 100)}
+                value={Math.round(
+                  (settings.centerMode === 'sun'
+                    ? 1 - (settings.radialSpread ?? 0)
+                    : settings.radialSpread ?? 0) * 100
+                )}
               />
               <span className="solar-range-ends">
-                <small>Current</small>
-                <small>One circle</small>
+                <small>{settings.centerMode === 'sun' ? 'Scale model' : 'Current'}</small>
+                <small>{settings.centerMode === 'sun' ? 'Useful view' : 'One circle'}</small>
               </span>
             </label>
           </section>
@@ -1518,8 +1633,9 @@ export function SolarSystemLive() {
               a telescope. Positions follow JPL’s approximate orbital model.
             </p>
             <p>
-              Planet sizes, orbit spacing, and the Moon’s distance are enlarged for clarity. This
-              is a positional diagram, not a scale model.
+              Planet sizes and the Moon’s distance are enlarged for clarity. In Sun-centered
+              mode, radial compression blends between shared-scale planetary distances and the
+              more readable default spacing; body sizes remain illustrative at both ends.
             </p>
             <p>
               Earth-centered mode translates every position relative to Earth and compresses large
@@ -1534,8 +1650,12 @@ export function SolarSystemLive() {
             </p>
             <p>
               The zodiac uses simplified bright-star figures at approximate ecliptic longitudes.
-              In the December-at-top view, Sagittarius is at the top; Earth-oriented views rotate
+              In the Sagittarius-at-top view, Sagittarius is at the top; Earth-oriented views rotate
               the entire map. Each constellation’s north points outward.
+            </p>
+            <p>
+              Earth is viewed from above the North Pole. Its land layer uses a polar
+              projection, with the equator forming the outside edge of the globe.
             </p>
             <a
               className="solar-source"
@@ -1560,6 +1680,14 @@ export function SolarSystemLive() {
               target="_blank"
             >
               Constellation lines: d3-celestial ↗
+            </a>
+            <a
+              className="solar-source"
+              href="https://www.naturalearthdata.com/"
+              rel="noreferrer"
+              target="_blank"
+            >
+              Land shapes: Natural Earth ↗
             </a>
           </section>
         </aside>
@@ -1611,6 +1739,9 @@ export function SolarSystemLive() {
               <stop offset="0.55" stopColor="#252c66" stopOpacity="0.2" />
               <stop offset="1" stopColor="#171c48" stopOpacity="0.1" />
             </radialGradient>
+            <clipPath id="earth-surface-clip">
+              <circle cx="0" cy="0" r="1" />
+            </clipPath>
           </defs>
 
         <rect x="-35" y="-35" width="710" height="710" fill="#000000" />
@@ -1708,6 +1839,7 @@ export function SolarSystemLive() {
               showLabel={settings.showLabels}
               solarDeclination={solarDeclination}
               sunPosition={sunPosition}
+              earthSurfaceRotation={earthSurfaceRotation}
             />
           ))}
 
@@ -1716,14 +1848,15 @@ export function SolarSystemLive() {
             aria-label="Your location on Earth"
             className={`earth-location${projectedLocation.nearSide ? '' : ' far-side'}`}
             data-location-marker="true"
+            transform={`translate(${locationX} ${locationY}) scale(${locationMarkerScale})`}
           >
             <title>
               {`Your location: ${settings.latitude?.toFixed(4)}°, ${settings.longitude?.toFixed(4)}°${
                 projectedLocation.nearSide ? '' : ' (far side of Earth)'
               }`}
             </title>
-            <circle className="earth-location-halo" cx={locationX} cy={locationY} r="3.1" />
-            <circle className="earth-location-dot" cx={locationX} cy={locationY} r="1.35" />
+            <circle className="earth-location-halo" cx="0" cy="0" r="3.1" />
+            <circle className="earth-location-dot" cx="0" cy="0" r="1.35" />
           </g>
         ) : null}
 
