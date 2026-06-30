@@ -42,7 +42,8 @@ type ZodiacConstellation = {
 
 const CENTER = 320;
 const DEG = Math.PI / 180;
-const CALENDAR_ROTATION = (90 - 284.2) * DEG;
+const CALENDAR_ROTATION = (90 - 280.7) * DEG;
+const MONTH_LABEL_ROTATION = -15;
 const GEOCENTRIC_RADIUS = 270;
 const GEOCENTRIC_MAX_AU = 11;
 const GEOCENTRIC_LOG_STRENGTH = 5;
@@ -698,22 +699,24 @@ function Planet({
 }
 
 function ZodiacMap({ rotation }: { rotation: number }) {
-  const decemberLongitude = ZODIAC[0].longitude;
-
   return (
     <g aria-label="Traditional zodiac constellation ring">
       <circle className="zodiac-ring" cx={CENTER} cy={CENTER} r="309" />
-      {ZODIAC.map((constellation) => {
-        const longitudeOffset =
-          (constellation.longitude - decemberLongitude + 360) % 360;
-        const angleDegrees = 90 + longitudeOffset + rotation / DEG;
+      {ZODIAC.map((constellation, index) => {
+        const angleDegrees =
+          constellation.longitude + CALENDAR_ROTATION / DEG + rotation / DEG;
         const angle = angleDegrees * DEG;
+        const monthAngle =
+          (90 + MONTH_LABEL_ROTATION + index * 30 + rotation / DEG) * DEG;
         const mapRadius = 325;
-        const labelRadius = 292;
+        const labelRadius = 296;
+        const monthRadius = 270;
         const x = CENTER + Math.cos(angle) * mapRadius;
         const y = CENTER - Math.sin(angle) * mapRadius;
         const labelX = CENTER + Math.cos(angle) * labelRadius;
         const labelY = CENTER - Math.sin(angle) * labelRadius;
+        const monthX = CENTER + Math.cos(monthAngle) * monthRadius;
+        const monthY = CENTER - Math.sin(monthAngle) * monthRadius;
         const visiblePoints = constellation.visiblePoints
           ? new Set(constellation.visiblePoints)
           : null;
@@ -751,10 +754,10 @@ function ZodiacMap({ rotation }: { rotation: number }) {
                 ) : null
               )}
             </g>
-            <text className="zodiac-label" x={labelX} y={labelY - 2} textAnchor="middle">
+            <text className="zodiac-label" x={labelX} y={labelY} textAnchor="middle">
               {constellation.name}
             </text>
-            <text className="zodiac-month" x={labelX} y={labelY + 7} textAnchor="middle">
+            <text className="zodiac-month" x={monthX} y={monthY} textAnchor="middle">
               {constellation.month}
             </text>
           </g>
@@ -1355,7 +1358,7 @@ export function SolarSystemLive() {
                 onChange={() => setOrientation('calendar')}
                 type="radio"
               />
-              December at top
+              Sagittarius at top
             </label>
             <label className="solar-toggle">
               <input
