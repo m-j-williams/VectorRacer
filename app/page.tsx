@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarDays, Flag, Orbit } from 'lucide-react';
+import { ArrowRight, CalendarDays, CloudSun, Flag, Orbit } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Home() {
@@ -25,6 +25,11 @@ export default function Home() {
         </div>
 
         <div className="tool-grid">
+          <Link className="tool-card climate-tool-card" href="/tools/climate-model">
+            <div className="tool-card-icon" aria-hidden="true"><CloudSun size={28} /></div>
+            <div className="stack tool-card-copy"><div><span className="tool-status">Interactive model</span><h3>Earth Energy Balance</h3></div><p>Trace sunlight and heat through a one-layer atmosphere, then change albedo and greenhouse strength.</p></div>
+            <span className="tool-card-link">Open model <ArrowRight size={18} /></span>
+          </Link>
           <Link className="tool-card" href="/tools/vector-racer">
             <div className="tool-card-icon" aria-hidden="true">
               <Flag size={28} />
@@ -79,6 +84,7 @@ export default function Home() {
               Open tool <ArrowRight size={18} />
             </span>
           </Link>
+
         </div>
       </section>
     </div>
