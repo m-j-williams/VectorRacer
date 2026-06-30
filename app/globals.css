@@ -323,6 +323,67 @@ a.tool-card:hover {
   width: 100%;
 }
 
+.solar-playback-control {
+  border-top: 1px solid #252c39;
+  margin-top: 14px;
+  padding-top: 13px;
+}
+
+.solar-playback-control > div:first-child {
+  align-items: baseline;
+  color: #8994a5;
+  display: flex;
+  font-size: 0.68rem;
+  font-weight: 750;
+  justify-content: space-between;
+}
+
+.solar-playback-control output {
+  color: #dce4ef;
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.solar-playback-control > button {
+  background: #202735;
+  border: 1px solid #3b4659;
+  border-radius: 6px;
+  color: #eef1f6;
+  cursor: pointer;
+  font-size: 0.72rem;
+  margin: 9px 0 8px;
+  min-height: 32px;
+  padding: 0 13px;
+}
+
+.solar-playback-control label > span {
+  position: absolute;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.solar-playback-control input {
+  accent-color: #ffd45a;
+  cursor: pointer;
+  margin: 0;
+  width: 100%;
+}
+
+.solar-playback-scale {
+  color: #737f90;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+}
+
+.solar-playback-scale small {
+  font-size: 0.58rem;
+}
+
 .solar-now-button {
   background: transparent;
   border: 1px solid #343d4d;
@@ -711,11 +772,7 @@ a.tool-card:hover {
 .jupiter-band {
   fill: none;
   stroke: #9f6649;
-}
-
-.jupiter-spot {
-  fill: #a94f36;
-  stroke: #69301f;
+  stroke-opacity: 0.72;
 }
 
 .solar-stage-footer {

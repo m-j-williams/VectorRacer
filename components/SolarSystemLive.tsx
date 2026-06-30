@@ -48,11 +48,13 @@ const GEOCENTRIC_MAX_AU = 11;
 const GEOCENTRIC_LOG_STRENGTH = 5;
 const EARTH_CENTERED_MOON_RADIUS = 48;
 const DAYLIGHT_WEDGE_RADIUS = 375;
+const HOUR_MS = 3600000;
 const DAY_MS = 86400000;
+const MONTH_MS = 30.436875 * DAY_MS;
 const YEAR_MS = 365.2425 * DAY_MS;
-const TIME_RANGE_MS = 20 * YEAR_MS;
+const DATE_TIME_RANGE_MS = 20 * YEAR_MS;
 const DAY_SLIDER_POSITION = 0.25;
-const YEAR_SLIDER_POSITION = 2 / 3;
+const MONTH_SLIDER_POSITION = 0.6;
 const EARTH_CENTERED_PLANET_SIZES: Record<PlanetName, number> = {
   Mercury: 2,
   Venus: 3,
@@ -129,31 +131,69 @@ function timeSliderToOffset(value: number) {
   if (position <= DAY_SLIDER_POSITION) {
     return sign * DAY_MS * (position / DAY_SLIDER_POSITION);
   }
-  if (position <= YEAR_SLIDER_POSITION) {
+  if (position <= MONTH_SLIDER_POSITION) {
     const progress =
-      (position - DAY_SLIDER_POSITION) / (YEAR_SLIDER_POSITION - DAY_SLIDER_POSITION);
-    return sign * DAY_MS * Math.pow(YEAR_MS / DAY_MS, progress);
+      (position - DAY_SLIDER_POSITION) / (MONTH_SLIDER_POSITION - DAY_SLIDER_POSITION);
+    return sign * DAY_MS * Math.pow(MONTH_MS / DAY_MS, progress);
   }
-  const progress = (position - YEAR_SLIDER_POSITION) / (1 - YEAR_SLIDER_POSITION);
-  return sign * YEAR_MS * Math.pow(TIME_RANGE_MS / YEAR_MS, progress);
+  const progress = (position - MONTH_SLIDER_POSITION) / (1 - MONTH_SLIDER_POSITION);
+  return sign * MONTH_MS * Math.pow(YEAR_MS / MONTH_MS, progress);
 }
 
 function timeOffsetToSlider(offset: number) {
   const sign = Math.sign(offset);
-  const duration = Math.min(TIME_RANGE_MS, Math.abs(offset));
+  const duration = Math.min(YEAR_MS, Math.abs(offset));
   if (duration <= DAY_MS) return sign * (duration / DAY_MS) * DAY_SLIDER_POSITION;
-  if (duration <= YEAR_MS) {
-    const progress = Math.log(duration / DAY_MS) / Math.log(YEAR_MS / DAY_MS);
+  if (duration <= MONTH_MS) {
+    const progress = Math.log(duration / DAY_MS) / Math.log(MONTH_MS / DAY_MS);
     return sign *
-      (DAY_SLIDER_POSITION + progress * (YEAR_SLIDER_POSITION - DAY_SLIDER_POSITION));
+      (DAY_SLIDER_POSITION + progress * (MONTH_SLIDER_POSITION - DAY_SLIDER_POSITION));
   }
-  const progress = Math.log(duration / YEAR_MS) / Math.log(TIME_RANGE_MS / YEAR_MS);
-  return sign * (YEAR_SLIDER_POSITION + progress * (1 - YEAR_SLIDER_POSITION));
+  const progress = Math.log(duration / MONTH_MS) / Math.log(YEAR_MS / MONTH_MS);
+  return sign * (MONTH_SLIDER_POSITION + progress * (1 - MONTH_SLIDER_POSITION));
 }
 
 function localDateTimeValue(date: Date) {
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function playbackSpeedFromSlider(value: number) {
+  return HOUR_MS * Math.pow(MONTH_MS / HOUR_MS, value / 100);
+}
+
+function playbackSliderFromSpeed(speed: number) {
+  return (Math.log(speed / HOUR_MS) / Math.log(MONTH_MS / HOUR_MS)) * 100;
+}
+
+function playbackSpeedLabel(speed: number) {
+  if (speed < DAY_MS) return `${Math.round(speed / HOUR_MS)} hours / second`;
+  if (speed < MONTH_MS * 0.8) {
+    const days = speed / DAY_MS;
+    return `${days < 10 ? days.toFixed(1) : Math.round(days)} days / second`;
+  }
+  return '1 month / second';
+}
+
+function readPlaybackSettings(search: string) {
+  const params = new URLSearchParams(search);
+  const rate = Number(params.get('rate'));
+  const speed = Number.isFinite(rate) && rate > 0
+    ? Math.min(MONTH_MS, Math.max(HOUR_MS, rate * HOUR_MS))
+    : DAY_MS;
+  return { playing: params.get('play') === '1', speed };
+}
+
+function writePlaybackSettings(playing: boolean, speed: number) {
+  const url = new URL(window.location.href);
+  if (playing) {
+    url.searchParams.set('play', '1');
+    url.searchParams.delete('time');
+  } else {
+    url.searchParams.delete('play');
+  }
+  url.searchParams.set('rate', String(Math.round((speed / HOUR_MS) * 1000) / 1000));
+  window.history.replaceState(window.history.state, '', url);
 }
 
 function readSettings(search: string): ViewSettings {
@@ -435,7 +475,7 @@ const PLANETS: OrbitalElements[] = [
     node: [100.47390909, 0.20469106],
     displayRadius: 211,
     color: '#d9b38c',
-    size: 12
+    size: 7
   },
   {
     name: 'Saturn',
@@ -447,7 +487,7 @@ const PLANETS: OrbitalElements[] = [
     node: [113.66242448, -0.28867794],
     displayRadius: 275,
     color: '#e4cf9a',
-    size: 10
+    size: 6
   }
 ];
 
@@ -622,8 +662,8 @@ function Planet({
           cx={planet.x}
           cy={planet.y}
           rx={planet.size * 1.8}
-          ry={planet.size * 0.48}
-          transform={`rotate(-18 ${planet.x} ${planet.y})`}
+          ry={planet.size * 1.6}
+          transform={`rotate(-8 ${planet.x} ${planet.y})`}
         />
       ) : null}
       {planet.name === 'Earth' ? (
@@ -640,22 +680,13 @@ function Planet({
         <circle data-body={planet.name} cx={planet.x} cy={planet.y} fill={planet.color} r={planet.size} />
       )}
       {planet.name === 'Jupiter' ? (
-        <g>
-          <path
-            className="jupiter-band"
-            d={`M ${planet.x - planet.size * 0.82} ${planet.y + planet.size * 0.08} Q ${planet.x} ${planet.y + planet.size * 0.3} ${planet.x + planet.size * 0.82} ${planet.y + planet.size * 0.08}`}
-            strokeWidth={Math.max(0.45, planet.size * 0.12)}
-          />
-          <ellipse
-            className="jupiter-spot"
-            cx={planet.x + planet.size * 0.32}
-            cy={planet.y + planet.size * 0.17}
-            rx={planet.size * 0.23}
-            ry={planet.size * 0.14}
-            strokeWidth={Math.max(0.25, planet.size * 0.05)}
-            transform={`rotate(-8 ${planet.x + planet.size * 0.32} ${planet.y + planet.size * 0.17})`}
-          />
-        </g>
+        <circle
+          className="jupiter-band"
+          cx={planet.x}
+          cy={planet.y}
+          r={planet.size * 0.62}
+          strokeWidth={Math.max(0.4, planet.size * 0.08)}
+        />
       ) : null}
       {showLabel ? (
         <text className="planet-label" x={labelX} y={planet.y - planet.size - 5} textAnchor={labelAnchor}>
@@ -736,6 +767,8 @@ function ZodiacMap({ rotation }: { rotation: number }) {
 export function SolarSystemLive() {
   const [liveNow, setLiveNow] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<number | null>(null);
+  const [timePlaying, setTimePlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(DAY_MS);
   const [menuOpen, setMenuOpen] = useState(false);
   const [settings, setSettings] = useState<ViewSettings>(DEFAULT_SETTINGS);
   const [animatedRotation, setAnimatedRotation] = useState(0);
@@ -749,8 +782,11 @@ export function SolarSystemLive() {
   useEffect(() => {
     const readUrl = () => {
       const next = readSettings(window.location.search);
+      const playback = readPlaybackSettings(window.location.search);
       setSettings(next);
-      setSelectedTime(readSelectedTime(window.location.search));
+      setSelectedTime(playback.playing ? null : readSelectedTime(window.location.search));
+      setPlaybackSpeed(playback.speed);
+      setTimePlaying(playback.playing);
       setCenterProgress(next.centerMode === 'earth' ? 1 : 0);
       setLocationDraft({
         latitude: next.latitude === null ? '' : String(next.latitude),
@@ -772,6 +808,24 @@ export function SolarSystemLive() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!timePlaying) return;
+    let previousTick = window.performance.now();
+    let playbackFrame = 0;
+    const animatePlayback = (currentTick: number) => {
+      const elapsedSeconds = (currentTick - previousTick) / 1000;
+      previousTick = currentTick;
+      setSelectedTime((current) => {
+        const next = (current ?? Date.now()) + elapsedSeconds * playbackSpeed;
+        return Math.min(next, Date.now() + DATE_TIME_RANGE_MS);
+      });
+      playbackFrame = window.requestAnimationFrame(animatePlayback);
+    };
+    playbackFrame = window.requestAnimationFrame(animatePlayback);
+
+    return () => window.cancelAnimationFrame(playbackFrame);
+  }, [playbackSpeed, timePlaying]);
+
   const now = selectedTime === null ? liveNow : new Date(selectedTime);
   const timeSliderValue = liveNow
     ? timeOffsetToSlider((selectedTime ?? liveNow.getTime()) - liveNow.getTime())
@@ -786,6 +840,8 @@ export function SolarSystemLive() {
   }
 
   function setTimeFromSlider(value: number) {
+    setTimePlaying(false);
+    writePlaybackSettings(false, playbackSpeed);
     if (!liveNow || Math.abs(value) < 0.0005) {
       setSelectedTime(null);
       writeSelectedTime(null);
@@ -799,8 +855,30 @@ export function SolarSystemLive() {
   function setTimeFromDateTime(value: string) {
     const timestamp = new Date(value).getTime();
     if (!Number.isFinite(timestamp)) return;
+    setTimePlaying(false);
+    writePlaybackSettings(false, playbackSpeed);
     setSelectedTime(timestamp);
     writeSelectedTime(timestamp);
+  }
+
+  function toggleTimePlayback() {
+    if (timePlaying) {
+      setTimePlaying(false);
+      if (selectedTime !== null) writeSelectedTime(selectedTime);
+      writePlaybackSettings(false, playbackSpeed);
+      return;
+    }
+    const startTime = selectedTime ?? liveNow?.getTime();
+    if (startTime === undefined) return;
+    setSelectedTime(startTime);
+    setTimePlaying(true);
+    writePlaybackSettings(true, playbackSpeed);
+  }
+
+  function setPlaybackRate(value: number) {
+    const speed = playbackSpeedFromSlider(value);
+    setPlaybackSpeed(speed);
+    writePlaybackSettings(timePlaying, speed);
   }
 
   function setBodyVisible(name: BodyName, visible: boolean) {
@@ -1079,11 +1157,14 @@ export function SolarSystemLive() {
     now && settings.latitude !== null && settings.longitude !== null
       ? projectObserverZenith(settings.latitude, settings.longitude, now, sceneRotation)
       : null;
-  const currentSkyCenterAngle = projectedLocation
-    ? Math.atan2(projectedLocation.y, projectedLocation.x)
+  const zenithProjectionLength = observerZenith
+    ? Math.hypot(observerZenith.x, observerZenith.y)
+    : 0;
+  const currentSkyCenterAngle = observerZenith
+    ? Math.atan2(observerZenith.y, observerZenith.x)
     : 0;
   const currentSkyVisiblePath =
-    earth && projectedLocation
+    earth && zenithProjectionLength > 0.0001
       ? radialWedgePath(
           earth.x,
           earth.y,
@@ -1093,7 +1174,7 @@ export function SolarSystemLive() {
         )
       : '';
   const currentSkyHiddenPath =
-    earth && projectedLocation
+    earth && zenithProjectionLength > 0.0001
       ? radialWedgePath(
           earth.x,
           earth.y,
@@ -1160,25 +1241,54 @@ export function SolarSystemLive() {
                 value={Math.round(timeSliderValue * 1000)}
               />
               <span className="solar-time-scale">
-                <small className="edge-start" style={{ left: '0%' }}>−20 years</small>
-                <small style={{ left: '16.667%' }}>−1 year</small>
+                <small className="edge-start" style={{ left: '0%' }}>−1 year</small>
+                <small style={{ left: '20%' }}>−1 month</small>
                 <small style={{ left: '37.5%' }}>−1 day</small>
                 <small style={{ left: '50%' }}>Now</small>
                 <small style={{ left: '62.5%' }}>+1 day</small>
-                <small style={{ left: '83.333%' }}>+1 year</small>
-                <small className="edge-end" style={{ left: '100%' }}>+20 years</small>
+                <small style={{ left: '80%' }}>+1 month</small>
+                <small className="edge-end" style={{ left: '100%' }}>+1 year</small>
               </span>
             </label>
             <label className="solar-date-time-control">
               <span>Date and time</span>
               <input
-                max={liveNow ? localDateTimeValue(new Date(liveNow.getTime() + TIME_RANGE_MS)) : undefined}
-                min={liveNow ? localDateTimeValue(new Date(liveNow.getTime() - TIME_RANGE_MS)) : undefined}
+                max={liveNow ? localDateTimeValue(new Date(liveNow.getTime() + DATE_TIME_RANGE_MS)) : undefined}
+                min={liveNow ? localDateTimeValue(new Date(liveNow.getTime() - DATE_TIME_RANGE_MS)) : undefined}
                 onChange={(event) => setTimeFromDateTime(event.target.value)}
                 type="datetime-local"
                 value={localDateTimeValue(now)}
               />
             </label>
+            <div className="solar-playback-control">
+              <div>
+                <span>Time playback</span>
+                <output>{playbackSpeedLabel(playbackSpeed)}</output>
+              </div>
+              <button
+                aria-label={timePlaying ? 'Pause time playback' : 'Play time forward'}
+                onClick={toggleTimePlayback}
+                type="button"
+              >
+                {timePlaying ? 'Pause' : 'Play'}
+              </button>
+              <label>
+                <span>Playback speed</span>
+                <input
+                  aria-label="Time playback speed"
+                  max="100"
+                  min="0"
+                  onChange={(event) => setPlaybackRate(Number(event.target.value))}
+                  step="1"
+                  type="range"
+                  value={Math.round(playbackSliderFromSpeed(playbackSpeed))}
+                />
+              </label>
+              <div className="solar-playback-scale">
+                <small>1 hour / second</small>
+                <small>1 month / second</small>
+              </div>
+            </div>
             <button
               className="solar-now-button"
               disabled={selectedTime === null}
@@ -1415,12 +1525,14 @@ export function SolarSystemLive() {
             <p>
               With a location set, the sky overlay can show either the seasonal daylight window or
               the half of the ecliptic currently above your horizon. Current sky shifts from blue
-              through violet, then shades the sky outside your view after dark.
+              through violet, then shades the sky outside your view after dark. Its horizon may
+              tilt relative to the polar Earth marker because Earth’s equator and the ecliptic are
+              tilted relative to one another.
             </p>
             <p>
-              The zodiac is a stylized, evenly spaced seasonal ring. In the December-at-top view,
-              Sagittarius is at the top; Earth-oriented views rotate the entire map. Each
-              constellation’s north points outward.
+              The zodiac uses simplified bright-star figures at approximate ecliptic longitudes.
+              In the December-at-top view, Sagittarius is at the top; Earth-oriented views rotate
+              the entire map. Each constellation’s north points outward.
             </p>
             <a
               className="solar-source"
