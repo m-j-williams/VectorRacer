@@ -24,6 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link className="nav-link" href="/tools/vector-racer">
                 Vector Racer
               </Link>
+              <Link className="nav-link" href="/tools/dot-calendar">
+                Dot Calendar
+              </Link>
             </nav>
           </header>
           <main className="main">{children}</main>

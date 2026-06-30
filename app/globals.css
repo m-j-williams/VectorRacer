@@ -197,6 +197,643 @@ a.tool-card:hover {
   color: #8a5b00;
 }
 
+.calendar-tool-card .tool-card-icon {
+  background: #fef0c7;
+  color: #9a5b13;
+}
+
+.calendar-tool-card .tool-status,
+.calendar-tool-card .tool-card-link {
+  color: #8a4d0f;
+}
+
+.dot-calendar-page {
+  display: grid;
+  gap: 30px;
+}
+
+.dot-calendar-intro {
+  align-items: end;
+  display: grid;
+  gap: 52px;
+  grid-template-columns: minmax(0, 1fr) minmax(440px, 0.92fr);
+  padding: 28px 0 4px;
+}
+
+.dot-calendar-title {
+  gap: 14px;
+  max-width: 650px;
+}
+
+.dot-calendar-title h1 {
+  font-size: clamp(2.65rem, 6vw, 5.2rem);
+  letter-spacing: -0.055em;
+  line-height: 0.96;
+  margin: 4px 0 0;
+}
+
+.dot-calendar-title p {
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.65;
+  margin: 2px 0 0;
+  max-width: 610px;
+}
+
+.dot-calendar-controls {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 16px 34px rgb(23 32 51 / 6%);
+  padding: 20px;
+}
+
+.date-range-fields {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.date-range-fields label {
+  display: grid;
+  gap: 7px;
+}
+
+.date-range-fields label > span,
+.date-presets > span {
+  color: #7a8598;
+  font-size: 0.69rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.date-range-fields input {
+  background: #f8fafc;
+  border: 1px solid #cfd7e3;
+  border-radius: 9px;
+  color: var(--ink);
+  min-width: 0;
+  padding: 11px 12px;
+  width: 100%;
+}
+
+.date-range-fields input:focus-visible,
+.date-presets button:focus-visible {
+  outline: 3px solid rgb(15 118 110 / 22%);
+  outline-offset: 2px;
+}
+
+.date-range-arrow {
+  color: #98a2b3;
+  margin-bottom: 12px;
+}
+
+.date-presets {
+  align-items: center;
+  border-top: 1px solid #e8ecf2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 18px;
+  padding-top: 15px;
+}
+
+.date-presets > span {
+  margin-right: 3px;
+}
+
+.date-presets button {
+  background: #f2f5f8;
+  border: 0;
+  border-radius: 999px;
+  color: #536074;
+  cursor: pointer;
+  font-size: 0.77rem;
+  font-weight: 750;
+  padding: 7px 10px;
+}
+
+.date-presets button:hover {
+  background: #d9f0ed;
+  color: var(--accent-dark);
+}
+
+.dot-calendar-card {
+  background: #fffdf8;
+  border: 1px solid #e2ddd1;
+  border-radius: 20px;
+  box-shadow: 0 22px 55px rgb(44 37 25 / 8%);
+  overflow: hidden;
+}
+
+.dot-calendar-summary {
+  align-items: end;
+  border-bottom: 1px solid #e8e2d7;
+  display: flex;
+  gap: 30px;
+  justify-content: space-between;
+  padding: 24px 30px 22px;
+}
+
+.dot-calendar-kicker {
+  color: #a16729;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dot-calendar-summary h2 {
+  font-size: clamp(1.8rem, 4vw, 2.65rem);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin: 7px 0 0;
+}
+
+.dot-calendar-summary p {
+  color: #697386;
+  font-size: 0.92rem;
+  margin: 0;
+}
+
+.dot-calendar-summary p span {
+  color: #a1a8b3;
+  margin: 0 6px;
+}
+
+.dot-calendar-scroll {
+  overflow-x: auto;
+  padding: 34px 30px 38px;
+}
+
+.dot-calendar-plot {
+  margin: 0 auto;
+  min-width: 420px;
+  width: min(100%, 760px);
+}
+
+.dot-calendar-weekdays,
+.dot-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(44px, 1fr));
+}
+
+.dot-calendar-weekdays {
+  border-bottom: 1px solid #e8e2d7;
+  color: #8c8a84;
+  font-size: 0.67rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  margin-bottom: 10px;
+  padding-bottom: 11px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.day-cell {
+  align-items: center;
+  display: flex;
+  height: 42px;
+  justify-content: center;
+  position: relative;
+}
+
+.day-dot {
+  background: #263247;
+  border-radius: 50%;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 40%) inset;
+  display: block;
+  height: 12px;
+  transition: transform 120ms ease;
+  width: 12px;
+}
+
+.day-cell:hover .day-dot {
+  transform: scale(1.45);
+}
+
+.day-cell.is-today .day-dot {
+  background: #0f766e;
+  box-shadow: 0 0 0 5px #d9f0ed;
+  height: 15px;
+  width: 15px;
+}
+
+.month-tag {
+  color: #a16729;
+  font-size: 0.58rem;
+  font-weight: 900;
+  left: calc(50% + 12px);
+  letter-spacing: 0.05em;
+  position: absolute;
+  text-transform: uppercase;
+  top: 0;
+}
+
+.dot-calendar-legend {
+  align-items: center;
+  background: #faf6ed;
+  border-top: 1px solid #e8e2d7;
+  color: #746f65;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  gap: 22px;
+  padding: 15px 30px;
+}
+
+.dot-calendar-legend span {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.legend-dot {
+  background: #263247;
+  border-radius: 50%;
+  display: inline-block;
+  height: 8px;
+  width: 8px;
+}
+
+.today-dot { background: #0f766e; box-shadow: 0 0 0 3px #d9f0ed; }
+
+.dot-calendar-empty {
+  align-items: center;
+  color: #8b5d29;
+  display: flex;
+  flex-direction: column;
+  min-height: 330px;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.dot-calendar-empty h2 { margin: 14px 0 6px; }
+.dot-calendar-empty p { color: var(--muted); margin: 0; }
+
+.dot-tool {
+  background: #050608;
+  color: #f5f7fa;
+  inset: 0;
+  overflow: hidden;
+  position: fixed;
+  z-index: 100;
+}
+
+.dot-stage {
+  --dot-stage-gutter: clamp(22px, 6vw, 88px);
+  height: 100%;
+  overflow: auto;
+  padding: 34px var(--dot-stage-gutter) 70px;
+  transition: padding-left 220ms cubic-bezier(0.22, 1, 0.36, 1), padding-right 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dot-stage.is-menu-open {
+  padding-left: 20px;
+  padding-right: calc(20px + min(360px, 100vw));
+}
+
+.dot-stage-header {
+  margin: 0 auto;
+  max-width: 760px;
+  padding-right: 70px;
+}
+
+.dot-stage-header h1 {
+  font-size: clamp(1.25rem, 2.4vw, 1.8rem);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+.dot-stage-header p {
+  color: #727b89;
+  font-size: 0.78rem;
+  margin: 7px 0 0;
+}
+
+.dot-field-wrap {
+  margin: 44px auto 0;
+  max-width: 1200px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+
+.dot-field {
+  box-sizing: content-box;
+  margin: 0 auto;
+  padding: 6px 12px;
+  width: var(--dot-field-width);
+}
+
+.dot-field.has-week-ranges {
+  width: calc(var(--dot-field-width) + 122px);
+}
+
+.dot-field-heading,
+.dot-week-row {
+  display: grid;
+  grid-template-columns: var(--dot-field-width);
+}
+
+.dot-field.has-week-ranges .dot-field-heading,
+.dot-field.has-week-ranges .dot-week-row {
+  grid-template-columns: 122px var(--dot-field-width);
+}
+
+.dot-column-labels {
+  display: grid;
+  grid-template-columns: repeat(var(--dot-columns), minmax(0, 1fr));
+}
+
+.dot-week-dots {
+  display: grid;
+  grid-template-columns: repeat(var(--dot-columns), minmax(0, 1fr));
+}
+
+.dot-field-heading {
+  margin-bottom: 16px;
+}
+
+.dot-column-labels {
+  color: #4d5664;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.dot-week-range {
+  align-items: center;
+  color: #535d6b;
+  display: flex;
+  font-size: 0.61rem;
+  height: var(--dot-row-height);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.dot-gridcell {
+  height: var(--dot-row-height);
+}
+
+.dot-cell {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  padding: 0;
+  width: 100%;
+}
+
+.calendar-dot {
+  background: #d8dce3;
+  border-radius: var(--dot-radius);
+  display: block;
+  height: var(--dot-height);
+  transition: border-radius 180ms cubic-bezier(0.22, 1, 0.36, 1), height 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 120ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1), width 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  width: var(--dot-width);
+}
+
+.dot-cell:hover .calendar-dot {
+  opacity: 0.7;
+  transform: scale(var(--dot-hover-scale));
+}
+
+.dot-cell.is-today .calendar-dot {
+  background: #ffd45a;
+  box-shadow: 0 0 0 4px rgb(255 212 90 / 12%), 0 0 18px rgb(255 212 90 / 35%);
+}
+
+.dot-cell.is-selected .calendar-dot {
+  background: #67d8ff;
+  box-shadow: 0 0 0 4px rgb(103 216 255 / 12%), 0 0 18px rgb(103 216 255 / 35%);
+}
+
+.dot-cell.is-today.is-selected .calendar-dot {
+  background: #67d8ff;
+  box-shadow:
+    inset 0 0 0 var(--today-inset) #ffd45a,
+    0 0 0 3px #ffd45a,
+    0 0 0 7px rgb(255 212 90 / 12%),
+    0 0 22px rgb(103 216 255 / 42%);
+}
+
+.dot-cell:focus-visible {
+  outline: none;
+}
+
+.dot-cell:focus-visible .calendar-dot {
+  box-shadow: 0 0 0 4px #050608, 0 0 0 6px #8e99aa;
+}
+
+.dot-menu-panel {
+  backdrop-filter: blur(18px);
+  background: rgb(7 9 14 / 94%);
+  border-left: 1px solid #252c39;
+  bottom: 0;
+  box-shadow: -18px 0 50px rgb(0 0 0 / 35%);
+  color: #f7f8fb;
+  overflow-y: auto;
+  padding: 86px 28px 32px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: min(360px, 100vw);
+  z-index: 102;
+}
+
+.dot-menu-panel section + section {
+  border-top: 1px solid #252c39;
+  margin-top: 25px;
+  padding-top: 24px;
+}
+
+.dot-menu-heading {
+  color: #7d899b;
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  margin-bottom: 13px;
+  text-transform: uppercase;
+}
+
+.dot-date-control {
+  display: grid;
+  gap: 7px;
+}
+
+.dot-date-control + .dot-date-control {
+  margin-top: 13px;
+}
+
+.dot-date-control span {
+  color: #aeb7c4;
+  font-size: 0.72rem;
+}
+
+.dot-date-control input {
+  background: #111620;
+  border: 1px solid #343d4d;
+  border-radius: 6px;
+  color: #edf0f5;
+  color-scheme: dark;
+  min-height: 40px;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.dot-select-control {
+  display: grid;
+  gap: 7px;
+}
+
+.dot-select-control + .dot-select-control {
+  margin-top: 13px;
+}
+
+.dot-select-control span {
+  color: #aeb7c4;
+  font-size: 0.72rem;
+}
+
+.dot-select-control select {
+  background: #111620;
+  border: 1px solid #343d4d;
+  border-radius: 6px;
+  color: #edf0f5;
+  min-height: 40px;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.dot-date-control input:focus-visible,
+.dot-preset-grid button:focus-visible {
+  border-color: #68758a;
+  outline: 2px solid rgb(255 212 90 / 30%);
+  outline-offset: 2px;
+}
+
+.dot-preset-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dot-preset-grid button {
+  background: #111620;
+  border: 1px solid #343d4d;
+  border-radius: 6px;
+  color: #cbd2dd;
+  cursor: pointer;
+  min-height: 38px;
+}
+
+.dot-preset-grid button:hover {
+  background: #1b222e;
+  border-color: #596579;
+  color: #fff;
+}
+
+.dot-range-control {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr auto;
+}
+
+.dot-range-control + .dot-range-control {
+  margin-top: 18px;
+}
+
+.dot-range-control span,
+.dot-range-control output {
+  color: #aeb7c4;
+  font-size: 0.72rem;
+}
+
+.dot-range-control output {
+  color: #6f7b8d;
+  font-variant-numeric: tabular-nums;
+}
+
+.dot-range-control input {
+  accent-color: #ffd45a;
+  cursor: pointer;
+  grid-column: 1 / -1;
+  margin: 0;
+  width: 100%;
+}
+
+.dot-toggle {
+  align-items: center;
+  color: #d6dbe4;
+  cursor: pointer;
+  display: flex;
+  font-size: 0.82rem;
+  gap: 10px;
+  min-height: 34px;
+}
+
+.dot-range-control + .dot-toggle {
+  border-top: 1px solid #252c39;
+  margin-top: 20px;
+  padding-top: 13px;
+}
+
+.dot-toggle input {
+  accent-color: #ffd45a;
+  height: 15px;
+  margin: 0;
+  width: 15px;
+}
+
+.dot-toggle.is-disabled {
+  color: #667181;
+  cursor: default;
+}
+
+.dot-menu-note,
+.dot-menu-error {
+  font-size: 0.78rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.dot-menu-note {
+  color: #8f99a8;
+}
+
+.dot-menu-error {
+  color: #f0a29b;
+  margin-top: 12px;
+}
+
+.dot-clear-button {
+  background: transparent;
+  border: 1px solid #343d4d;
+  border-radius: 6px;
+  color: #aeb8c7;
+  cursor: pointer;
+  min-height: 36px;
+  padding: 0 11px;
+  width: 100%;
+}
+
+.dot-clear-button:hover {
+  background: #151b25;
+  border-color: #596579;
+  color: #fff;
+}
+
 .solar-tool {
   background: #000;
   border: 0;
@@ -1277,6 +1914,32 @@ a.tool-card:hover {
     grid-template-columns: 1fr;
   }
 
+  .dot-calendar-intro {
+    align-items: stretch;
+    gap: 26px;
+    grid-template-columns: 1fr;
+    padding-top: 18px;
+  }
+
+  .dot-calendar-title h1 {
+    font-size: clamp(2.6rem, 13vw, 4rem);
+  }
+
+  .dot-calendar-summary {
+    align-items: start;
+    flex-direction: column;
+    gap: 9px;
+    padding: 21px 20px 18px;
+  }
+
+  .dot-calendar-scroll {
+    padding: 28px 18px 32px;
+  }
+
+  .dot-calendar-legend {
+    padding: 15px 20px;
+  }
+
   .solar-tool {
     grid-template-columns: 1fr;
   }
@@ -1313,5 +1976,46 @@ a.tool-card:hover {
     border-top: 1px solid var(--line);
     padding-left: 0;
     padding-top: 20px;
+  }
+}
+
+@media (max-width: 520px) {
+  .dot-stage.is-menu-open {
+    padding-right: var(--dot-stage-gutter);
+  }
+
+  .dot-calendar-controls {
+    padding: 16px;
+  }
+
+  .date-range-fields {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .date-range-arrow {
+    display: none;
+  }
+
+  .date-presets > span {
+    flex-basis: 100%;
+  }
+
+  .dot-calendar-card {
+    border-radius: 14px;
+  }
+
+  .dot-calendar-scroll {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .dot-calendar-plot {
+    min-width: 350px;
+  }
+
+  .dot-calendar-weekdays,
+  .dot-calendar-grid {
+    grid-template-columns: repeat(7, minmax(40px, 1fr));
   }
 }

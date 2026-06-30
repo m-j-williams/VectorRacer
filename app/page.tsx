@@ -1,4 +1,4 @@
-import { ArrowRight, Flag, Orbit, Plus } from 'lucide-react';
+import { ArrowRight, CalendarDays, Flag, Orbit } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Home() {
@@ -62,21 +62,23 @@ export default function Home() {
             </span>
           </Link>
 
-          <div className="tool-card tool-card-placeholder">
+          <Link className="tool-card calendar-tool-card" href="/tools/dot-calendar">
             <div className="tool-card-icon" aria-hidden="true">
-              <Plus size={28} />
+              <CalendarDays size={28} />
             </div>
             <div className="stack tool-card-copy">
               <div>
-                <span className="tool-status">Growing collection</span>
-                <h3>Your next tool</h3>
+                <span className="tool-status">Available now</span>
+                <h3>Dot Calendar</h3>
               </div>
               <p>
-                New activities can share this design system, Supabase project, and Vercel
-                deployment.
+                Turn any stretch of time into a seven-day-wide field, with one dot for every day.
               </p>
             </div>
-          </div>
+            <span className="tool-card-link">
+              Open tool <ArrowRight size={18} />
+            </span>
+          </Link>
         </div>
       </section>
     </div>
