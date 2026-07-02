@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarDays, CloudSun, Flag, Orbit } from 'lucide-react';
+import { ArrowRight, CalendarDays, CloudSun, Dices, Flag, Orbit } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Home() {
@@ -83,6 +83,12 @@ export default function Home() {
             <span className="tool-card-link">
               Open tool <ArrowRight size={18} />
             </span>
+          </Link>
+
+          <Link className="tool-card boardgame-tool-card" href="/tools/boardgame-leaderboard">
+            <div className="tool-card-icon" aria-hidden="true"><Dices size={28} /></div>
+            <div className="stack tool-card-copy"><div><span className="tool-status">Private by link</span><h3>Boardgame Leaderboard</h3></div><p>Record game-night results, follow Elo ratings, and settle the table’s most important arguments.</p></div>
+            <span className="tool-card-link">Create a group <ArrowRight size={18} /></span>
           </Link>
 
         </div>

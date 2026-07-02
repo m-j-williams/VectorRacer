@@ -200,6 +200,74 @@ a.tool-card:hover {
 .climate-tool-card .tool-card-icon { background: #d8f1fa; color: #116485; }
 .climate-tool-card .tool-status, .climate-tool-card .tool-card-link { color: #116485; }
 
+.boardgame-tool-card .tool-card-icon { background: #f3e8ff; color: #7e22ce; }
+.boardgame-tool-card .tool-status, .boardgame-tool-card .tool-card-link { color: #7e22ce; }
+
+/* Boardgame leaderboard */
+.bgl-landing { margin: 5vh auto; max-width: 760px; text-align: center; }
+.bgl-landing-icon { align-items: center; background: #f3e8ff; border-radius: 18px; color: #7e22ce; display: inline-flex; height: 68px; justify-content: center; margin-bottom: 18px; width: 68px; }
+.bgl-landing h1 { font-size: clamp(2.4rem, 6vw, 4.4rem); letter-spacing: -.055em; line-height: .98; margin: 12px 0 20px; }
+.bgl-landing > p { color: var(--muted); font-size: 1.15rem; line-height: 1.65; margin: 0 auto; max-width: 620px; }
+.bgl-create-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 20px 55px rgb(33 24 61 / 8%); margin: 38px auto 0; max-width: 620px; padding: 26px; text-align: left; }
+.bgl-create-card label, .bgl-form label, .bgl-form legend { color: var(--ink); font-size: .86rem; font-weight: 800; }
+.bgl-create-row { display: flex; gap: 10px; margin: 9px 0 12px; }
+.bgl-create-row input { flex: 1; }
+.bgl-create-card small, .bgl-hint { color: var(--muted); line-height: 1.5; }
+.bgl-create-card input, .bgl-form input, .bgl-form textarea { background: var(--surface); border: 1px solid var(--line); border-radius: 9px; color: var(--ink); font: inherit; min-width: 0; padding: 11px 12px; width: 100%; }
+.bgl-create-card button, .bgl-form > button, .bgl-section-title > button { background: #6d28d9; border: 0; border-radius: 9px; color: white; cursor: pointer; font: inherit; font-weight: 800; padding: 11px 16px; }
+.bgl-create-card button:disabled, .bgl-form button:disabled { cursor: wait; opacity: .6; }
+.bgl-error { background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; color: #9f1239; padding: 10px 12px; }
+.bgl-state { padding: 12vh 20px; text-align: center; }
+.bgl-state svg { color: #7e22ce; }
+.bgl-app { margin: -8px auto 0; max-width: 1120px; }
+.bgl-header { align-items: center; display: flex; gap: 20px; justify-content: space-between; margin-bottom: 24px; }
+.bgl-header h1 { font-size: clamp(2rem, 5vw, 3.25rem); letter-spacing: -.045em; margin: 5px 0 0; }
+.bgl-secondary { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; color: var(--ink); cursor: pointer; display: inline-flex; font: inherit; font-weight: 750; gap: 7px; padding: 9px 12px; }
+.bgl-tabs { border-bottom: 1px solid var(--line); display: flex; gap: 6px; margin-bottom: 24px; overflow-x: auto; }
+.bgl-tabs button { align-items: center; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted); cursor: pointer; display: flex; font: inherit; font-weight: 750; gap: 7px; padding: 12px 14px; white-space: nowrap; }
+.bgl-tabs button.active { border-color: #7e22ce; color: #6d28d9; }
+.bgl-dashboard { display: grid; gap: 20px; grid-template-columns: minmax(0, 1.25fr) minmax(310px, .75fr); }
+.bgl-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 15px; padding: 22px; }
+.bgl-section-title { align-items: end; display: flex; gap: 16px; justify-content: space-between; margin-bottom: 18px; }
+.bgl-section-title h2, .bgl-form-panel h2 { font-size: 1.65rem; margin: 4px 0 0; }
+.bgl-leaderboard-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.bgl-game-board { background: #faf8ff; border: 1px solid #e9ddfa; border-radius: 12px; padding: 16px; }
+.bgl-game-board h3 { margin: 0 0 12px; }
+.bgl-rank { align-items: center; border-top: 1px solid #eee7f7; display: grid; gap: 10px; grid-template-columns: 24px 1fr auto; padding: 9px 0; }
+.bgl-rank > strong { color: #7e22ce; }
+.bgl-rank span { display: grid; font-weight: 700; }
+.bgl-rank small { color: var(--muted); font-size: .72rem; font-weight: 500; }
+.bgl-rank b { font-variant-numeric: tabular-nums; }
+.bgl-empty { border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); padding: 35px 20px; text-align: center; }
+.bgl-match-list { display: grid; gap: 10px; }
+.bgl-match { border: 1px solid var(--line); border-radius: 10px; padding: 14px; position: relative; }
+.bgl-match h3 { margin: 0 35px 2px 0; }
+.bgl-match time { color: var(--muted); font-size: .78rem; }
+.bgl-match ol { list-style: none; margin: 12px 0 0; padding: 0; }
+.bgl-match li { display: flex; justify-content: space-between; padding: 3px 0; }
+.bgl-match > p { color: var(--muted); font-size: .85rem; margin: 9px 0 0; }
+.bgl-icon-danger { align-items: center; background: transparent; border: 0; color: #be123c; cursor: pointer; display: flex; justify-content: center; padding: 6px; }
+.bgl-match > .bgl-icon-danger { position: absolute; right: 8px; top: 8px; }
+.bgl-form-panel { margin: 0 auto; max-width: 720px; }
+.bgl-form { display: grid; gap: 18px; margin-top: 24px; }
+.bgl-form label { display: grid; gap: 7px; }
+.bgl-form-row { display: grid; gap: 12px; grid-template-columns: 2fr 1fr; }
+.bgl-form fieldset { border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 10px; margin: 0; padding: 15px; }
+.bgl-form legend { padding: 0 6px; }
+.bgl-player-row { align-items: end; display: grid; gap: 8px; grid-template-columns: minmax(140px, 2fr) 75px 90px 32px; }
+.bgl-player-cards { display: grid; gap: 10px; margin-top: 20px; }
+.bgl-player-cards article { align-items: center; border: 1px solid var(--line); border-radius: 10px; display: flex; gap: 13px; padding: 13px; }
+.bgl-avatar { align-items: center; background: #f3e8ff; border-radius: 50%; color: #7e22ce; display: flex; font-size: 1.1rem; font-weight: 900; height: 42px; justify-content: center; width: 42px; }
+.bgl-player-cards h3, .bgl-player-cards p { margin: 0; }
+.bgl-player-cards p { color: var(--muted); font-size: .82rem; margin-top: 3px; }
+
+@media (max-width: 760px) {
+  .bgl-dashboard { grid-template-columns: 1fr; }
+  .bgl-header { align-items: flex-start; flex-direction: column; }
+  .bgl-create-row { flex-direction: column; }
+  .bgl-player-row { grid-template-columns: minmax(120px, 1fr) 65px 75px 28px; }
+}
+
 /* Earth energy-balance model */
 .climate-tool { margin: -8px auto 0; max-width: 1400px; width: 100%; }
 .climate-heading { align-items: end; display: flex; justify-content: space-between; margin-bottom: 22px; }
