@@ -193,7 +193,10 @@ export default function CribbageClient({ dailyKey, displayDate }: { dailyKey: st
       const swap = Math.floor(rng() * (index + 1));
       [deck[index], deck[swap]] = [deck[swap], deck[index]];
     }
-    const hand = deck.slice(0, 6);
+    const hand = deck.slice(0, 6).sort((first, second) => {
+      const rankDifference = ranks.indexOf(first.rank) - ranks.indexOf(second.rank);
+      return rankDifference || suits.indexOf(first.suit) - suits.indexOf(second.suit);
+    });
     const isYourCrib = rng() > 0.5;
     const cut = deck[6];
     const opponentDiscards = chooseOpponentDiscards(deck.slice(7), isYourCrib, rng);
