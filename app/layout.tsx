@@ -30,6 +30,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link className="nav-link" href="/tools/climate-model">
                 Climate
               </Link>
+              <Link className="nav-link" href="/tools/next-move-cribbage">
+                Cribbage
+              </Link>
             </nav>
           </header>
           <main className="main">{children}</main>
