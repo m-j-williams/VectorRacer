@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarDays, CloudSun, Dices, Flag, Orbit } from 'lucide-react';
+import { ArrowRight, CalendarDays, CloudSun, Dices, Flag, Orbit, Spade } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Home() {
@@ -83,6 +83,20 @@ export default function Home() {
             <span className="tool-card-link">
               Open tool <ArrowRight size={18} />
             </span>
+          </Link>
+
+          <Link className="tool-card cribbage-tool-card" href="/tools/next-move-cribbage">
+            <div className="tool-card-icon" aria-hidden="true">
+              <Spade size={28} />
+            </div>
+            <div className="stack tool-card-copy">
+              <div>
+                <span className="tool-status">New hand daily</span>
+                <h3>Next Move — Cribbage</h3>
+              </div>
+              <p>Choose two cards for the crib, then compare your move with the crowd and the book.</p>
+            </div>
+            <span className="tool-card-link">Play today’s hand <ArrowRight size={18} /></span>
           </Link>
 
           <Link className="tool-card boardgame-tool-card" href="/tools/boardgame-leaderboard">
