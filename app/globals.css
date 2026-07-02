@@ -598,6 +598,11 @@ a.tool-card:hover {
 .book-choice > strong.book-match { color: var(--crib-red); }
 .cribbage-footer { color: #737a75; display: flex; font-family: Georgia, serif; font-size: 0.77rem; font-style: italic; justify-content: space-between; padding-top: 17px; }
 
+@media (max-width: 1150px) {
+  .crib-table { grid-template-columns: 1fr auto auto; }
+  .crib-table-label { grid-column: 1 / -1; }
+}
+
 @media (max-width: 900px) {
   .cribbage-header { align-items: start; gap: 25px; }
   .cribbage-game { grid-template-columns: 1fr; }
